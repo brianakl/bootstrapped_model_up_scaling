@@ -25,7 +25,7 @@ class TransformerLayer(nn.Module):
         self.FFN = torch.nn.Sequential(
             torch.nn.Linear(d_model, d_internal),
             torch.nn.ReLU(), 
-            torch.Dropout(),
+            torch.nn.Dropout(),
             torch.nn.Linear(d_internal, d_model)
         )
         self.d_model = d_model
@@ -157,6 +157,10 @@ class Transformer(nn.Module):
 
 
     def forward(self, indices):
+        """
+        :param indices: list of input indices
+        :return: A tuple of softmax log probabilities and a list of the attention maps 
+        """
         t = self.embed(indices)
         t = self.penc(t)
         t = t.to(torch.float64)
@@ -169,6 +173,202 @@ class Transformer(nn.Module):
     def batch(self, b):
         self.b = b
         self.penc.batched = b
+
+
+
+
+def get_letter_count_output(input: str, count_only_previous: bool=True) -> np.array:
+    """
+    :param input: The string
+    :param count_only_previous: True if we should only count previous occurences, False for all occurences
+    :return: the output for the letter-counting task as a numpy array of 0s, 1s, and 2s
+    """
+    output = np.zeros(len(input))
+    for i in range(0, len(input)):
+        if count_only_previous:
+            output[i] = min(2, len([c for c in input[0:i] if c == input[i]]))
+        else:
+            output[i] = min(2, len([c for c in input if c == input[i]])-1)
+    return output
+
+
+
+def read_example(file):
+    """
+    :param file: input file
+    :return: A list of the lines in the file, each exactly 20 characters long
+    """
+    all_lines = []
+    for line in open(file):
+        all_lines.append(line[:-1])     # remove the \n
+
+    return all_lines
+
+
+
+class SentenceData(Dataset):
+    def __init__(self, data, labels):
+        super().__init__()
+        self.data = data
+        self.labels = labels
+        self.n = len(data)
+
+    def __len__(self):
+        return self.n
+
+    def __getitem__(self, idx):
+        return (self.data[idx], self.labels[idx])
+ 
+
+
+def train_classifier(args, train:LetterCountingExample, dev:LetterCountingExample, extrap=None, num_epochs=10):
+
+    model = Transformer(**args)
+    if extrap != None:
+        model.extrap(extrap)
+
+    model.train()
+    optimizer = optim.Adam(model.parameters(), lr=1e-4)
+    model#.to('cuda')
+    x_train = []
+    y_train = []
+
+    for i in range(len(train)):
+        x_train.append(train[i].input_tensor)
+        y_train.append(train[i].output_tensor)
+
+    ds = SentenceData(x_train, y_train)
+
+    data = DataLoader(ds, batch_size=16, shuffle=True)
+
+    for t in range(num_epochs):
+        loss_fnc = nn.NLLLoss()
+        for i, (d, label) in enumerate(data):
+            py, x = model(d)
+
+            loss = loss_fnc(py.view(-1,3), label.view(-1))
+
+            model.zero_grad()
+            loss.backward()
+            optimizer.step()
+            loss_this_epoch += loss.item()
+
+
+    model.batch(False)
+    return model
+
+
+
+
+def decode(model: Transformer, dev_examples: List[LetterCountingExample], do_print=False, do_plot_attn=False):
+    """
+    Decodes the given dataset, does plotting and printing of examples and prints the final accuracy
+    :param model: the model that outputs the log probabilities at each position in the input
+    :param dev_examples: the list of LetterCountingExample
+    :param do_print: True if you want to print the input/gold/predictions for the examples, false otherwise
+    :param do_plot_attn: True if you want to write out plots for each example, false otherwise
+    :return: None    
+    """
+    num_correct = 0 
+    num_total = 0
+
+    if len(dev_examples) > 100:
+        if do_print:
+            print("Decoding on a large number of examples (%i); not printing or plotting" % len(dev_examples))
+        do_print = False
+        do_plot_attn = False
+    for i in range(0, len(dev_examples)):
+        ex = dev_examples[i]
+        (log_probs, attn_maps) = model.forward(ex.input_tensor)
+        predictions = np.argmax(log_probs.detach().numpy(), axis=1)
+        if do_print:
+            print("INPUT %i: %s" % (i, ex.input))
+            print("GOLD %i: %s" % (i, repr(ex.output.astype(dtype=int))))
+            print("PRED %i: %s" % (i, repr(predictions)))
+        if do_plot_attn:
+            for j in range(0, len(attn_maps)):
+                attn_map = attn_maps[j]
+                fig, ax = plt.subplots()
+                im = ax.imshow(attn_map.detach().numpy(), cmap='hot', interpolation='nearest')
+                ax.set_xticks(np.arange(len(ex.input)), labels=ex.input)
+                ax.set_yticks(np.arange(len(ex.input)), labels=ex.input)
+                ax.xaxis.tick_top()
+                # plt.show()
+                plt.savefig("plots/%i_attns%i.png" % (i, j))
+        acc = sum([predictions[i] == ex.output[i] for i in range(0, len(predictions))])
+        num_correct += acc
+        num_total += len(predictions)
+    if do_print:
+        print("Accuracy: %i / %i = %f" % (num_correct, num_total, float(num_correct) / num_total))
+    return (num_correct, num_total, float(num_correct) / num_total)
+
+
+
+
+
+
+def test(args, model=None, train_data='data/lettercounting-train.txt', dev_data='data/lettercounting-dev.txt', do_print=False, do_plot_attn=False, num_epochs=10):
+    # Constructs the vocabulary: lowercase letters a to z and space
+    vocab = [chr(ord('a') + i) for i in range(0, 26)] + [' ']
+    vocab_index = Indexer()
+    for char in vocab:
+        vocab_index.add_and_get_index(char)
+    if do_print:
+        print(repr(vocab_index))
+
+    count_only_previous = True
+
+    # Constructs and labels the data
+    train_exs = read_example(train_data)
+    train_bundles = [LetterCountingExample(l, get_letter_count_output(l, count_only_previous), vocab_index) for l in train_exs]
+    dev_exs = read_example(dev_data)
+    dev_bundles = [LetterCountingExample(l, get_letter_count_output(l, count_only_previous), vocab_index) for l in dev_exs]
+    if model == None:
+        model = train_classifier(args, train_bundles, dev_bundles, num_epochs=num_epochs)
+    else:
+        model = train_classifier(args, train_bundles, dev_bundles, extrap=model, num_epochs=num_epochs)
+
+    results = []
+    # Decodes the first 5 dev examples to display as output
+    results.append(decode(model, dev_bundles[0:5], do_print=do_print, do_plot_attn=do_plot_attn))
+    # Decodes 100 training examples and the entire dev set (1000 examples)
+    if do_print:
+        print("Training accuracy (whole set):")
+    results.append(decode(model, train_bundles, do_print))
+
+    if do_print:
+        print("Dev accuracy (whole set):")
+    results.append(decode(model, dev_bundles, do_print))
+    
+    return model, result
+
+
+
+
+
+if __name__ == "__main__":
+    args = {'vocab_size':27, 'num_positions':20, 'd_model':12, 'd_internal':6, 'num_classes':3, 'num_layers':1}
+    model, results = test(args= args)  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
