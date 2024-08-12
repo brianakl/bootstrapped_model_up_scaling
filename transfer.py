@@ -99,6 +99,84 @@ class LetterCountingExample(object):
 
 
 
+class Transformer(nn.Module):
+    def __init__(self, vocab_size, num_positions, d_model, d_internal, num_classes, num_layers, **args):
+        super().__init__()
+        self.num_layers = num_layers
+        self.d_model = d_model
+        self.d_internal = d_internal
+
+        self.tformer = TransformerLayer(d_model, d_internal)
+        self.Softmax = torch.nn.LogSoftmax(dim=-1)
+        self.FFN = torch.nn.Sequential(
+            torch.nn.Linear(d_model, d_internal),
+            torch.nn.ReLU(),
+            torch.nn.Dropout(),
+            torch.nn.Linear(d_internal, num_classes)
+        )
+        self.b = False
+        self.penc = PositionalEncoding(d_model=d_model, num_positions=num_positions, batched=self.b)
+        self.embed = torch.nn.Embedding(vocab_size, d_model)
+
+        self.double()
+
+
+
+    def extrap(self, model, method='double'):
+        if method == 'double':
+            d_m = self.d_model
+            d_i = d_m // 2
+            z = torch.zeros(d_m, d_i, dtype=float)
+
+            j = 0
+            for i in range(0, d_m-1, 2):
+                z[i][j] = 1
+                z[i+1][j] = 1
+                j += 1
+
+            z1 = torch.zeros(d_i, d_i//2, dtype=float)
+            j = 0
+            for i in range(0, d_i-1, 2):
+                z1[i][j] = 1
+                z1[i+1][j] = 1
+                j += 1
+            
+
+            # TODO: check that all this matmul is correct
+            Q = torch.matmul(z, torch.transpose(model.tformer.W_Q.weight.data, -1, -2))
+            Q = torch.matmul(Q, torch.transpose(z1, -1, -2))
+            self.tformer.W_Q.weight.data = torch.transpose(Q, -1, -2)
+
+            K = torch.matmul(z, torch.transpose(model.tformer.W_K.weight.data, -1, -2))
+            K = torch.matmul(z1, torch.transpose(K, -1, -2))
+            self.tformer.W_K.weight.data = K
+
+            V = torch.matmul(z, torch.transpose(model.tformer.W_V.weight.data, -1, -2))     # especially this one for V
+            V = torch.matmul(z, torch.transpose(z1, -1, -2))
+            self.tformer.W_V.weight.data = torch.transpose(V, -1, -2)
+
+
+    def forward(self, indices):
+        t = self.embed(indices)
+        t = self.penc(t)
+        t = t.to(torch.float64)
+        t, attn = self.tformer(t)
+        x = self.FFN(t)
+        x = self.Softmax(x)
+        return x, [attn]
+
+
+    def batch(self, b):
+        self.b = b
+        self.penc.batched = b
+
+
+
+
+
+
+
+
 
 
 
