@@ -346,12 +346,31 @@ def test(args, model=None, train_data='data/lettercounting-train.txt', dev_data=
 
 
 
+def compare(model_args:List):
+    # Take a specific model args, train it, and print results
+
+    for args in model_args:
+        model, results = test(args=args)
+        print(args)
+        print(results)
+        print() 
+
+
 
 
 if __name__ == "__main__":
-    args = {'vocab_size':27, 'num_positions':20, 'd_model':12, 'd_internal':6, 'num_classes':3, 'num_layers':1}
-    model, results = test(args= args)  
-    print(results)
+    model_args = [
+        {'vocab_size':27, 'num_positions':20, 'd_model':12, 'd_internal':6, 'num_classes':3, 'num_layers':1},
+        {'vocab_size':27, 'num_positions':20, 'd_model':24, 'd_internal':12, 'num_classes':3, 'num_layers':1},
+        {'vocab_size':27, 'num_positions':20, 'd_model':48, 'd_internal':24, 'num_classes':3, 'num_layers':1},
+        {'vocab_size':27, 'num_positions':20, 'd_model':96, 'd_internal':48, 'num_classes':3, 'num_layers':1},
+        {'vocab_size':27, 'num_positions':20, 'd_model':192, 'd_internal':96, 'num_classes':3, 'num_layers':1},
+        {'vocab_size':27, 'num_positions':20, 'd_model':256, 'd_internal':192, 'num_classes':3, 'num_layers':1},
+    ]
+    compare(model_args)
+
+
+    # TODO: create comparison loop for different model types 
 
 
 
