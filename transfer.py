@@ -17,7 +17,7 @@ class TransformerLayer(nn.Module):
 
         self.W_Q = torch.nn.Linear(d_model, d_internal, False)
         self.W_K = torch.nn.Linear(d_model, d_internal, False)
-        self.W_V = torch.nn.Linear(d_model, d_internal, False)
+        self.W_V = torch.nn.Linear(d_model, d_model, False)
 
         self.SoftMax = torch.nn.Softmax(dim=-1)
 
@@ -42,6 +42,7 @@ class TransformerLayer(nn.Module):
 
         Q = torch.matmul(Q, torch.transpose(K, -2, -1))
         Q = Q / torch.sqrt(torch.tensor(self.d_model))
+        
 
         Attn = self.SoftMax(Q)
         a = torch.matmul(Attn, V)
@@ -229,7 +230,7 @@ def train_classifier(args, train:LetterCountingExample, dev:LetterCountingExampl
 
     model.train()
     optimizer = optim.Adam(model.parameters(), lr=1e-4)
-    model#.to('cuda')
+    # model#.to('cuda')
     x_train = []
     y_train = []
 
@@ -243,6 +244,7 @@ def train_classifier(args, train:LetterCountingExample, dev:LetterCountingExampl
 
     for t in range(num_epochs):
         loss_fnc = nn.NLLLoss()
+        # loss_this_epoch = 0
         for i, (d, label) in enumerate(data):
             py, x = model(d)
 
@@ -251,7 +253,7 @@ def train_classifier(args, train:LetterCountingExample, dev:LetterCountingExampl
             model.zero_grad()
             loss.backward()
             optimizer.step()
-            loss_this_epoch += loss.item()
+            # loss_this_epoch += loss.item()
 
 
     model.batch(False)
@@ -334,13 +336,13 @@ def test(args, model=None, train_data='data/lettercounting-train.txt', dev_data=
     # Decodes 100 training examples and the entire dev set (1000 examples)
     if do_print:
         print("Training accuracy (whole set):")
-    results.append(decode(model, train_bundles, do_print))
+    results.append({"training accuracy":decode(model, train_bundles, do_print)})
 
     if do_print:
         print("Dev accuracy (whole set):")
-    results.append(decode(model, dev_bundles, do_print))
+    results.append({"dev training accuracy": decode(model, dev_bundles, do_print)})
     
-    return model, result
+    return model, results
 
 
 
@@ -349,7 +351,7 @@ def test(args, model=None, train_data='data/lettercounting-train.txt', dev_data=
 if __name__ == "__main__":
     args = {'vocab_size':27, 'num_positions':20, 'd_model':12, 'd_internal':6, 'num_classes':3, 'num_layers':1}
     model, results = test(args= args)  
-
+    print(results)
 
 
 
