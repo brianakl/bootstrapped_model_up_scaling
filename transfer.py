@@ -370,7 +370,6 @@ if __name__ == "__main__":
     compare(model_args)
 
 
-    # TODO: create comparison loop for different model types 
 
 
 
