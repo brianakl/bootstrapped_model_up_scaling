@@ -2,6 +2,7 @@ import time
 import torch 
 import torch.nn as nn
 import numpy as np
+import numpy.linalg as LA
 import random
 from torch import optim
 import matplotlib.pyplot as plt
@@ -9,6 +10,7 @@ from typing import List
 from utils import *
 from torch.utils.data import Dataset, DataLoader, RandomSampler
 import tqdm
+from sklearn.decomposition import PCA
 
 
 class TransformerLayer(nn.Module):
@@ -153,7 +155,7 @@ class Transformer(nn.Module):
             self.tformer.W_K.weight.data = K
 
             V = torch.matmul(z, torch.transpose(model.tformer.W_V.weight.data, -1, -2))     # especially this one for V
-            V = torch.matmul(z, torch.transpose(z1, -1, -2))
+            V = torch.matmul(z, torch.transpose(V, -1, -2))
             self.tformer.W_V.weight.data = torch.transpose(V, -1, -2)
 
 
@@ -348,12 +350,64 @@ def test(args, model=None, train_data='data/lettercounting-train.txt', dev_data=
 
 def compare(model_args:List):
     # Take a specific model args, train it, and print results
+    prev_args = None
 
     for args in model_args:
-        model, results = test(args=args)
+        if prev_args == None:   
+            prev_args = args
+            continue
+        
+        model, results = test(args=prev_args, num_epochs=5)
+
+        m, r = test(args=args, model=model, num_epochs=5)
+        m1, r1 = test(args=args, num_epochs=10)
+        prev_args = args
+
         print(args)
+        
         print(results)
+        print(r)
+        print(r1)
+
+
+        # print(args)
+        # print(results)
         print() 
+
+
+def do_pca(models:List):
+    Qs = []
+    Ks = []
+    Vs = []
+    for model in models:
+        Qs.append(model.tformer.W_Q.weight.data.detach().numpy())
+        Ks.append(model.tformer.W_K.weight.data.detach())
+        Vs.append(model.tformer.W_V.weight.data.detach())
+        # self.tformer.W_Q.weight.data = torch.transpose(Q, -1, -2)
+
+    print(np.array(Qs).shape)
+
+    pca = PCA(n_components=6, svd_solver='full')
+    pca.fit(Qs[-1])
+    print(pca.explained_variance_)
+    print(pca.singular_values_)
+    print()
+    exit()
+
+
+
+def eigen_comparison(model_args:List):
+    # compare the pca of a school of models of the same size?
+
+    models = []   
+    for args in model_args:
+        models.append([])
+        for _ in range(1):
+            m, r = test(args=args)
+            models[-1].append(m)
+        do_pca(models[-1])
+
+
 
 
 
@@ -367,7 +421,8 @@ if __name__ == "__main__":
         {'vocab_size':27, 'num_positions':20, 'd_model':192, 'd_internal':96, 'num_classes':3, 'num_layers':1},
         {'vocab_size':27, 'num_positions':20, 'd_model':256, 'd_internal':192, 'num_classes':3, 'num_layers':1},
     ]
-    compare(model_args)
+    # compare(model_args)
+    eigen_comparison(model_args)
 
 
 
