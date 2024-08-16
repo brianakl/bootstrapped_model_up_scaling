@@ -384,16 +384,20 @@ def do_pca(models:List):
         Ks.append(model.tformer.W_K.weight.data.detach())
         Vs.append(model.tformer.W_V.weight.data.detach())
         # self.tformer.W_Q.weight.data = torch.transpose(Q, -1, -2)
-
+    
+    n = np.array(Qs).shape
     print(np.array(Qs).shape)
 
-    pca = PCA(n_components=6, svd_solver='full')
+    pca = PCA(n_components=5, svd_solver='full')
     pca.fit(Qs[-1])
     print(pca.explained_variance_)
     print(pca.singular_values_)
-    print()
-    exit()
+    U, S, Vh = LA.svd(Qs[-1])
+    # print(U)
+    print(S[:12])
+    # print(Vh)
 
+    print()
 
 
 def eigen_comparison(model_args:List):
@@ -405,6 +409,7 @@ def eigen_comparison(model_args:List):
         for _ in range(1):
             m, r = test(args=args)
             models[-1].append(m)
+            print(r)
         do_pca(models[-1])
 
 
