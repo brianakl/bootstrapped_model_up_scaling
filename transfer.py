@@ -145,7 +145,6 @@ class Transformer(nn.Module):
                 j += 1
             
 
-            # TODO: check that all this matmul is correct
             Q = torch.matmul(z, torch.transpose(model.tformer.W_Q.weight.data, -1, -2))
             Q = torch.matmul(Q, torch.transpose(z1, -1, -2))
             self.tformer.W_Q.weight.data = torch.transpose(Q, -1, -2)
@@ -157,6 +156,46 @@ class Transformer(nn.Module):
             V = torch.matmul(z, torch.transpose(model.tformer.W_V.weight.data, -1, -2))     # especially this one for V
             V = torch.matmul(z, torch.transpose(V, -1, -2))
             self.tformer.W_V.weight.data = torch.transpose(V, -1, -2)
+
+
+
+        if method == "onehot":
+
+            # for one hot we simply add the corresponding one hot vector to the dimensions of the vector
+
+            Q = model.tformer.W_Q.weight.data
+            z = torch.zeros((self.d_internal - model.d_internal, model.tformer.d_model))
+            Q = torch.cat((Q,z), dim=0)
+            z = torch.zeros((self.d_model - model.d_model, self.d_model - model.d_model))
+            Q = torch.cat((Q,z), dim=-1)
+            for i in range(self.d_internal):
+                Q[i][i] = 1 if Q[i][i] == 0 else Q[i][i]
+            
+
+            V = model.tformer.W_V.weight.data
+            z = torch.zeros((self.d_model - model.d_model, model.tformer.d_model))
+            V = torch.cat((V,z), dim=0)
+            z = torch.zeros((self.d_model, model.tformer.d_model))
+            V = torch.cat((V,z), dim=-1)
+            for i in range(self.d_model):
+                V[i][i] = 1 if V[i][i] == 0 else V[i][i]
+
+            K = model.tformer.W_K.weight.data
+            z = torch.zeros((self.d_internal - model.d_internal, model.tformer.d_model))
+            K = torch.cat((K,z), dim=0)
+            z = torch.zeros((self.tformer.d_internal, model.tformer.d_model))
+            K = torch.cat((K,z), dim=-1)
+            for i in range(self.d_internal):
+                K[i][i] = 1 if K[i][i] == 0 else K[i][i]
+
+
+            self.tformer.W_Q.weight.data = Q
+            self.tformer.W_K.weight.data = K
+            self.tformer.W_V.weight.data = V
+
+
+
+
 
 
     def forward(self, indices):
@@ -228,7 +267,7 @@ def train_classifier(args, train:LetterCountingExample, dev:LetterCountingExampl
 
     model = Transformer(**args)
     if extrap != None:
-        model.extrap(extrap)
+        model.extrap(extrap, method='onehot')
 
     model.train()
     optimizer = optim.Adam(model.parameters(), lr=1e-4)
@@ -363,11 +402,11 @@ def compare(model_args:List):
         m1, r1 = test(args=args, num_epochs=10)
         prev_args = args
 
-        print(args)
+        print("args: ", args)
         
-        print(results)
-        print(r)
-        print(r1)
+        print("prev args: \t ", results)
+        print("transfer: \t ",r)
+        print("full train: \t", r1)
 
 
         # print(args)
@@ -424,10 +463,10 @@ if __name__ == "__main__":
         {'vocab_size':27, 'num_positions':20, 'd_model':48, 'd_internal':24, 'num_classes':3, 'num_layers':1},
         {'vocab_size':27, 'num_positions':20, 'd_model':96, 'd_internal':48, 'num_classes':3, 'num_layers':1},
         {'vocab_size':27, 'num_positions':20, 'd_model':192, 'd_internal':96, 'num_classes':3, 'num_layers':1},
-        {'vocab_size':27, 'num_positions':20, 'd_model':256, 'd_internal':192, 'num_classes':3, 'num_layers':1},
+        {'vocab_size':27, 'num_positions':20, 'd_model':192*2, 'd_internal':192, 'num_classes':3, 'num_layers':1},
     ]
-    # compare(model_args)
-    eigen_comparison(model_args)
+    compare(model_args)
+    # eigen_comparison(model_args)
 
 
 

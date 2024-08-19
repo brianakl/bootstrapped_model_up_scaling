@@ -18,3 +18,12 @@ In linear algebra there is a way to condense large matrices into smaller ones us
 - what does it mean for two matrices to have the same singular values?
 - Since these matrices all seem to converge to the same singular values there must be something that they are all converging to 
 - If they share singular values does that mean that we can construct a new larger matrix based on the singular values of the smaller matrix that will be closer to the solution for the larger matrix?
+
+
+
+
+
+
+# Steps 
+- attempted doubling every col and row
+- adding one hot vectors to each matrix to expand it that way
