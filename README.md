@@ -27,3 +27,14 @@ In linear algebra there is a way to condense large matrices into smaller ones us
 # Steps 
 - attempted doubling every col and row
 - adding one hot vectors to each matrix to expand it that way
+    - this works
+    - test protocol:
+        - Train a transformer for 5 epochs at half the size n/2
+        - expand the transformer to full size by simply adding it to the n sized identity
+        - train for an additional 5 epochs
+        - train a seperate model at full size n for 10 epochs
+        - compare average dev set accuracy
+    - results:
+        - with smaller models that acheive worse performance, there seems to be little to no improvement, this is with matrix sizes of <48
+        - with larger models, the improvement is larger
+        - 
