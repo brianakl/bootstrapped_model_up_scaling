@@ -271,7 +271,7 @@ def train_classifier(args, train:LetterCountingExample, dev:LetterCountingExampl
 
     model.train()
     optimizer = optim.Adam(model.parameters(), lr=1e-4)
-    # model#.to('cuda')
+    model#.to('cuda')
     x_train = []
     y_train = []
 
@@ -395,18 +395,24 @@ def compare(model_args:List):
         if prev_args == None:   
             prev_args = args
             continue
+        res_std = []
+        res_tran = []
+        for _ in tqdm.tqdm(range(50)):
+            model, results = test(args=prev_args, num_epochs=5)
+    
+            m, r = test(args=args, model=model, num_epochs=5)
+            res_tran.append(r[2]['dev training accuracy'][2])
+            m1, r1 = test(args=args, num_epochs=10)
+            res_std.append(r1[2]['dev training accuracy'][2])
         
-        model, results = test(args=prev_args, num_epochs=5)
 
-        m, r = test(args=args, model=model, num_epochs=5)
-        m1, r1 = test(args=args, num_epochs=10)
+
         prev_args = args
 
         print("args: ", args)
         
-        print("prev args: \t ", results)
-        print("transfer: \t ",r)
-        print("full train: \t", r1)
+        print("transfer: \t ",np.average(res_tran))
+        print("full train: \t", np.average(res_std))
 
 
         # print(args)
@@ -458,8 +464,6 @@ def eigen_comparison(model_args:List):
 
 if __name__ == "__main__":
     model_args = [
-        {'vocab_size':27, 'num_positions':20, 'd_model':12, 'd_internal':6, 'num_classes':3, 'num_layers':1},
-        {'vocab_size':27, 'num_positions':20, 'd_model':24, 'd_internal':12, 'num_classes':3, 'num_layers':1},
         {'vocab_size':27, 'num_positions':20, 'd_model':48, 'd_internal':24, 'num_classes':3, 'num_layers':1},
         {'vocab_size':27, 'num_positions':20, 'd_model':96, 'd_internal':48, 'num_classes':3, 'num_layers':1},
         {'vocab_size':27, 'num_positions':20, 'd_model':192, 'd_internal':96, 'num_classes':3, 'num_layers':1},
