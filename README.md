@@ -8,9 +8,28 @@ The purpose of this script is to determine if there is a way to transfer knowled
 
 In linear algebra there is a way to condense large matrices into smaller ones using Principal Component Analysis (PCA). More formally, this is a linear dimensionality reduction. Since there is a way to go from large to small, is there a way to go from small to large? It will never be able to perfectly recreate what the larger matrix should have been but, would it be possible for it to at least not start from the very begining? Is there some way to transfer that information that the smaller matrix has to the larger one?
 
+## Test
+To test transfer learning capabilty of transformers a simple task was created to test transformer learning. This task is one that a transformer would excel at in comparison to other LLM models/architectures.
+
+### The Task
+The task is given a string of characters, the model must learn to predict, for each position in the string, how many times the character at that position occurred before, maxing out at 2. This 3-class classification problem is an easy task to set up testing data for to compare results. This is becuase the task can be learned with only 1 single-headed transformer layer without using multiple layers or large neural networks on top of the model. The performance of the transformer is directly preportional to the performance of the model. 
+This task is also specifically chosen since a transformer would particularly benefit from "looking back" in the input with its' self-attention. 
+Below is a sample:
+
+The majority cannot reason; it has no judgment.
+00000000001010101122112022021222212222100012220
+
+For each character, the output should be the number of times that character has occurred before.
+
+men love the downfall and disgrace of the righteous
+000000011002201010001212121000020222121122111222201
+
+## The dataset
+The dataset 
 
 
 
+## Model Architecture
 
 
 # Steps 
@@ -28,10 +47,13 @@ In linear algebra there is a way to condense large matrices into smaller ones us
         - with smaller models that acheive worse performance, there seems to be little to no improvement, this is with matrix sizes of <48
         - with larger models, the improvement is larger
 
-| Model size | Dev set accuracy |
-|:----------:|:----------------:|
-| 
- 
+| Model size (d_model) | Model size (d_internal) | Dev set accuracy | Dev accuracy (transfer learning) | Transfer Improvement |
+|:--------------------:|:-----------------------:|:----------------:|:--------------------------------:|:--------------------:|
+| 48 | 24 | 0.6782 | 0.6345| -0.0437 |
+| 96 | 48 | 0.7583 | 0.7244 | -0.0339 |
+| 192 | 96 | 0.8250 | 0.8432 | 0.0182 |
+| 384 | 192 | 0.8735 | 0.9089 | 0.0354 |
+| 768 | 384 | 0.8735 | 0.9089 | 0.0354 |
 
 
 

@@ -13,6 +13,8 @@ import tqdm
 from sklearn.decomposition import PCA
 
 
+DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
 class TransformerLayer(nn.Module):
     def __init__(self, d_model, d_internal):
         super().__init__()
@@ -57,7 +59,7 @@ class TransformerLayer(nn.Module):
 
 
 class PositionalEncoding(nn.Module):
-    def __init__(self, d_model:int, num_positions: int=20, batched=False):
+    def __init__(self, d_model:int, num_positions: int=20, batched=True):
         super().__init__()
 
         self.emb = nn.Embedding(num_positions, d_model)
@@ -65,7 +67,9 @@ class PositionalEncoding(nn.Module):
         self.d_model = d_model
         self.num_positions = num_positions
         
-        self.sinu = torch.zeros((num_positions, d_model))
+        self.sinu = torch.zeros((num_positions, d_model)).to(DEVICE)
+            
+
 
         for pos in range(num_positions):
             for m in range(d_model):
@@ -76,8 +80,8 @@ class PositionalEncoding(nn.Module):
 
 
     def forward(self, x):
-        input_size = x.shape[-2]
-        indices_to_embed = torch.tensor(np.asarray(range(0, input_size))).type(torch.LongTensor)
+        # input_size = x.shape[-2]
+        # indices_to_embed = torch.tensor(np.asarray(range(0, input_size))).type(torch.LongTensor)
 
         if self.batched:
             for b in range(x.shape[0]):
@@ -119,7 +123,7 @@ class Transformer(nn.Module):
         )
         self.b = False
         self.penc = PositionalEncoding(d_model=d_model, num_positions=num_positions, batched=self.b)
-        self.embed = torch.nn.Embedding(vocab_size, d_model)
+        self.embed = torch.nn.Embedding(vocab_size, d_model).to(DEVICE)
 
         self.double()
 
@@ -164,26 +168,26 @@ class Transformer(nn.Module):
             # for one hot we simply add the corresponding one hot vector to the dimensions of the vector
 
             Q = model.tformer.W_Q.weight.data
-            z = torch.zeros((self.d_internal - model.d_internal, model.tformer.d_model))
+            z = torch.zeros((self.d_internal - model.d_internal, model.tformer.d_model)).to(DEVICE)
             Q = torch.cat((Q,z), dim=0)
-            z = torch.zeros((self.d_model - model.d_model, self.d_model - model.d_model))
+            z = torch.zeros((self.d_model - model.d_model, self.d_model - model.d_model)).to(DEVICE)
             Q = torch.cat((Q,z), dim=-1)
             for i in range(self.d_internal):
                 Q[i][i] = 1 if Q[i][i] == 0 else Q[i][i]
             
 
             V = model.tformer.W_V.weight.data
-            z = torch.zeros((self.d_model - model.d_model, model.tformer.d_model))
+            z = torch.zeros((self.d_model - model.d_model, model.tformer.d_model)).to(DEVICE)
             V = torch.cat((V,z), dim=0)
-            z = torch.zeros((self.d_model, model.tformer.d_model))
+            z = torch.zeros((self.d_model, model.tformer.d_model)).to(DEVICE)
             V = torch.cat((V,z), dim=-1)
             for i in range(self.d_model):
                 V[i][i] = 1 if V[i][i] == 0 else V[i][i]
 
             K = model.tformer.W_K.weight.data
-            z = torch.zeros((self.d_internal - model.d_internal, model.tformer.d_model))
+            z = torch.zeros((self.d_internal - model.d_internal, model.tformer.d_model)).to(DEVICE)
             K = torch.cat((K,z), dim=0)
-            z = torch.zeros((self.tformer.d_internal, model.tformer.d_model))
+            z = torch.zeros((self.tformer.d_internal, model.tformer.d_model)).to(DEVICE)
             K = torch.cat((K,z), dim=-1)
             for i in range(self.d_internal):
                 K[i][i] = 1 if K[i][i] == 0 else K[i][i]
@@ -203,7 +207,7 @@ class Transformer(nn.Module):
         :param indices: list of input indices
         :return: A tuple of softmax log probabilities and a list of the attention maps 
         """
-        t = self.embed(indices)
+        t = self.embed(indices.to(DEVICE))
         t = self.penc(t)
         t = t.to(torch.float64)
         t, attn = self.tformer(t)
@@ -269,35 +273,38 @@ def train_classifier(args, train:LetterCountingExample, dev:LetterCountingExampl
     if extrap != None:
         model.extrap(extrap, method='onehot')
 
+    model.to(DEVICE)
+
     model.train()
     optimizer = optim.Adam(model.parameters(), lr=1e-4)
-    model#.to('cuda')
     x_train = []
     y_train = []
 
     for i in range(len(train)):
-        x_train.append(train[i].input_tensor)
-        y_train.append(train[i].output_tensor)
+        x_train.append(train[i].input_tensor.to(DEVICE))
+        y_train.append(train[i].output_tensor.to(DEVICE))
 
     ds = SentenceData(x_train, y_train)
 
     data = DataLoader(ds, batch_size=16, shuffle=True)
 
+    training_loop(model, data, num_epochs)
+
+
+def training_loop(model, data, num_epochs=10):
+    optimizer = optim.Adam(model.parameters(), lr=1e-4)
     for t in range(num_epochs):
         loss_fnc = nn.NLLLoss()
-        # loss_this_epoch = 0
         for i, (d, label) in enumerate(data):
             py, x = model(d)
-
             loss = loss_fnc(py.view(-1,3), label.view(-1))
 
             model.zero_grad()
             loss.backward()
             optimizer.step()
-            # loss_this_epoch += loss.item()
 
 
-    model.batch(False)
+    # model.batch(False)
     return model
 
 
@@ -323,7 +330,7 @@ def decode(model: Transformer, dev_examples: List[LetterCountingExample], do_pri
     for i in range(0, len(dev_examples)):
         ex = dev_examples[i]
         (log_probs, attn_maps) = model.forward(ex.input_tensor)
-        predictions = np.argmax(log_probs.detach().numpy(), axis=1)
+        predictions = np.argmax(log_probs.cpu().detach().numpy(), axis=1)
         if do_print:
             print("INPUT %i: %s" % (i, ex.input))
             print("GOLD %i: %s" % (i, repr(ex.output.astype(dtype=int))))
@@ -389,6 +396,37 @@ def test(args, model=None, train_data='data/lettercounting-train.txt', dev_data=
 
 def compare(model_args:List):
     # Take a specific model args, train it, and print results
+    # Constructs the vocabulary: lowercase letters a to z and space
+    vocab = [chr(ord('a') + i) for i in range(0, 26)] + [' ']
+    vocab_index = Indexer()
+    train_data='data/lettercounting-train.txt' 
+    dev_data='data/lettercounting-dev.txt'
+    do_print=False
+    do_plot_attn=False
+    num_epochs=10
+    for char in vocab:
+        vocab_index.add_and_get_index(char)
+    if do_print:
+        print(repr(vocab_index))
+
+    count_only_previous = True
+
+    # Constructs and labels the data
+    train_exs = read_example(train_data)
+    train = [LetterCountingExample(l, get_letter_count_output(l, count_only_previous), vocab_index) for l in train_exs]
+    dev_exs = read_example(dev_data)
+    dev = [LetterCountingExample(l, get_letter_count_output(l, count_only_previous), vocab_index) for l in dev_exs]   
+
+    x_train = []
+    y_train = []
+
+    for i in range(len(train)):
+        x_train.append(train[i].input_tensor.to(DEVICE))
+        y_train.append(train[i].output_tensor.to(DEVICE))
+
+    ds = SentenceData(x_train, y_train)
+
+    data = DataLoader(ds, batch_size=64, shuffle=True)
     prev_args = None
 
     for args in model_args:
@@ -398,12 +436,20 @@ def compare(model_args:List):
         res_std = []
         res_tran = []
         for _ in tqdm.tqdm(range(100)):
-            model, results = test(args=prev_args, num_epochs=5)
+            # model, results = test(args=prev_args, num_epochs=5)
+            model = Transformer(**prev_args).to(DEVICE)
+            model = training_loop(model, data, num_epochs=5)
     
-            m, r = test(args=args, model=model, num_epochs=5)
-            res_tran.append(r[2]['dev training accuracy'][2])
-            m1, r1 = test(args=args, num_epochs=10)
-            res_std.append(r1[2]['dev training accuracy'][2])
+            # m, r = test(args=args, model=model, num_epochs=5)
+            model_transfer = Transformer(**args).to(DEVICE)
+            model_transfer.extrap(model, method='onehot')
+            model_transfer = training_loop(model_transfer, data, num_epochs=5)
+            res_tran.append(decode(model_transfer, dev,do_print, do_plot_attn)[-1])
+            # m1, r1 = test(args=args, num_epochs=10)
+            model_full = Transformer(**args).to(DEVICE)
+            training_loop(model_full, data, num_epochs=10)
+            # res_std.append(r1[2]['dev training accuracy'][2])
+            res_std.append(decode(model_full, dev, do_print, do_plot_attn)[-1])
         
 
 
@@ -464,11 +510,14 @@ def eigen_comparison(model_args:List):
 
 if __name__ == "__main__":
     model_args = [
-        {'vocab_size':27, 'num_positions':20, 'd_model':48, 'd_internal':24, 'num_classes':3, 'num_layers':1},
-        {'vocab_size':27, 'num_positions':20, 'd_model':96, 'd_internal':48, 'num_classes':3, 'num_layers':1},
+        # {'vocab_size':27, 'num_positions':20, 'd_model':24, 'd_internal':12, 'num_classes':3, 'num_layers':1},
+        # {'vocab_size':27, 'num_positions':20, 'd_model':48, 'd_internal':24, 'num_classes':3, 'num_layers':1},
+        # {'vocab_size':27, 'num_positions':20, 'd_model':96, 'd_internal':48, 'num_classes':3, 'num_layers':1},
         {'vocab_size':27, 'num_positions':20, 'd_model':192, 'd_internal':96, 'num_classes':3, 'num_layers':1},
         {'vocab_size':27, 'num_positions':20, 'd_model':192*2, 'd_internal':192, 'num_classes':3, 'num_layers':1},
+        {'vocab_size':27, 'num_positions':20, 'd_model':192*4, 'd_internal':192*2, 'num_classes':3, 'num_layers':1},
     ]
+    print("CUDA Device used: ", DEVICE)
     compare(model_args)
     # eigen_comparison(model_args)
 
