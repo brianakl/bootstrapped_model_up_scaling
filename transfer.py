@@ -397,7 +397,7 @@ def compare(model_args:List):
             continue
         res_std = []
         res_tran = []
-        for _ in tqdm.tqdm(range(50)):
+        for _ in tqdm.tqdm(range(100)):
             model, results = test(args=prev_args, num_epochs=5)
     
             m, r = test(args=args, model=model, num_epochs=5)
