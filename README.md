@@ -24,8 +24,12 @@ For each character, the output should be the number of times that character has 
 men love the downfall and disgrace of the righteous
 000000011002201010001212121000020222121122111222201
 
+For this example we extended the length of the string to demonstrate the rule. In the training set each string will be 20 characters long as demonstrated below. the vocab is also limited to the english letters and space. Numbers are spelled out as individual digits (10 becomes one zero).
+
+the majority cannot r
+men love the downfall
 ## The dataset
-The dataset 
+The dataset was taken from text8. 
 
 
 
@@ -61,7 +65,7 @@ The dataset
 
 | Model size (d_model) | Model size (d_internal) | Dev set accuracy | Dev accuracy (transfer learning) | Transfer Improvement |
 |:--------------------:|:-----------------------:|:----------------:|:--------------------------------:|:--------------------:|
-| 48 | 24 | 67.82% | 63.45%| -4.37% |
+<!-- | 48 | 24 | 67.82% | 63.45%| -4.37% | -->
 | 96 | 48 | 75.83% | 72.44% | -3.39% |
 | 192 | 96 | 82.50% | 84.32% | +1.82% |
 | 384 | 192 | 88.46% | 93.26% | +4.80% |
