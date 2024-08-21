@@ -53,7 +53,8 @@ The dataset
         - train for an additional 5 epochs
         - train a seperate model at full size n for 10 epochs
         - compare average dev set accuracy
-        - this test was performed 100 times and averaged to obtain a result accuracy of +/- 1%
+        - this test was performed 100 times and averaged     
+        - test still needs to be performed more to obtain a statistically valid result
     - results:
         - with smaller models that acheive worse performance, there seems to be little to no improvement, this is with matrix sizes of <48
         - with larger models, the improvement is larger
