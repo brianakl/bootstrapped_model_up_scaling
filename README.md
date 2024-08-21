@@ -32,6 +32,17 @@ The dataset
 ## Model Architecture
 
 
+## Optimal training split
+- TODO:
+    - compare what kind of transfer learning is best
+    - compare transfer training ratio
+    - compare ammount of transfer training
+    - plot the training rates (dev set accuracy)
+        - compare epoch to epoch 
+        - compare epoch to epoch for same model size
+        - the transfer learning should show a much sharper learning rate
+        - also compare training loss? why not 
+
 # Steps 
 - attempted doubling every col and row
 - adding one hot vectors to each matrix to expand it that way
@@ -49,11 +60,11 @@ The dataset
 
 | Model size (d_model) | Model size (d_internal) | Dev set accuracy | Dev accuracy (transfer learning) | Transfer Improvement |
 |:--------------------:|:-----------------------:|:----------------:|:--------------------------------:|:--------------------:|
-| 48 | 24 | 0.6782 | 0.6345| -0.0437 |
-| 96 | 48 | 0.7583 | 0.7244 | -0.0339 |
-| 192 | 96 | 0.8250 | 0.8432 | 0.0182 |
-| 384 | 192 | 0.8846 | 0.9326 | 0.0480 |
-| 768 | 384 | 0.8980 | 0.9504 | 0.0524 |
+| 48 | 24 | 67.82% | 63.45%| -4.37% |
+| 96 | 48 | 75.83% | 72.44% | -3.39% |
+| 192 | 96 | 82.50% | 84.32% | +1.82% |
+| 384 | 192 | 88.46% | 93.26% | +4.80% |
+| 768 | 384 | 89.80% | 95.04% | +5.24% |
 
 
 

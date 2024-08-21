@@ -170,7 +170,7 @@ class Transformer(nn.Module):
             Q = model.tformer.W_Q.weight.data
             z = torch.zeros((self.d_internal - model.d_internal, model.tformer.d_model)).to(DEVICE)
             Q = torch.cat((Q,z), dim=0)
-            z = torch.zeros((self.d_model - model.d_model, self.d_model - model.d_model)).to(DEVICE)
+            z = torch.zeros((self.d_internal, self.d_model - model.d_model)).to(DEVICE)
             Q = torch.cat((Q,z), dim=-1)
             for i in range(self.d_internal):
                 Q[i][i] = 1 if Q[i][i] == 0 else Q[i][i]
@@ -187,7 +187,7 @@ class Transformer(nn.Module):
             K = model.tformer.W_K.weight.data
             z = torch.zeros((self.d_internal - model.d_internal, model.tformer.d_model)).to(DEVICE)
             K = torch.cat((K,z), dim=0)
-            z = torch.zeros((self.tformer.d_internal, model.tformer.d_model)).to(DEVICE)
+            z = torch.zeros((self.d_internal, model.tformer.d_model)).to(DEVICE)
             K = torch.cat((K,z), dim=-1)
             for i in range(self.d_internal):
                 K[i][i] = 1 if K[i][i] == 0 else K[i][i]
@@ -291,7 +291,7 @@ def train_classifier(args, train:LetterCountingExample, dev:LetterCountingExampl
     training_loop(model, data, num_epochs)
 
 
-def training_loop(model, data, num_epochs=10):
+def training_loop(model, data, dev, num_epochs=10):
     optimizer = optim.Adam(model.parameters(), lr=1e-4)
     for t in range(num_epochs):
         loss_fnc = nn.NLLLoss()
@@ -303,6 +303,8 @@ def training_loop(model, data, num_epochs=10):
             loss.backward()
             optimizer.step()
 
+
+        # print("epoch {}:\t".format(t), decode(model, dev))
 
     # model.batch(False)
     return model
@@ -426,31 +428,40 @@ def compare(model_args:List):
 
     ds = SentenceData(x_train, y_train)
 
-    data = DataLoader(ds, batch_size=64, shuffle=True)
+    data = DataLoader(ds, batch_size=128, shuffle=True)
     prev_args = None
+    pprev_args = None
 
     for args in model_args:
+        if pprev_args == None:   
+            pprev_args = args
+            continue
         if prev_args == None:   
             prev_args = args
             continue
         res_std = []
         res_tran = []
-        for _ in tqdm.tqdm(range(100)):
-            # model, results = test(args=prev_args, num_epochs=5)
+        # for _ in tqdm.tqdm(range(10)):
+        for _ in range(10):
+            
+            # print("prevargs:")
             model = Transformer(**prev_args).to(DEVICE)
-            model = training_loop(model, data, num_epochs=5)
-    
-            # m, r = test(args=args, model=model, num_epochs=5)
+            model = training_loop(model, data, dev, num_epochs=20)
             model_transfer = Transformer(**args).to(DEVICE)
             model_transfer.extrap(model, method='onehot')
-            model_transfer = training_loop(model_transfer, data, num_epochs=5)
+
+            # print("full transfer:")
+            model_transfer = training_loop(model_transfer, data, dev, num_epochs=30)
             res_tran.append(decode(model_transfer, dev,do_print, do_plot_attn)[-1])
-            # m1, r1 = test(args=args, num_epochs=10)
+
             model_full = Transformer(**args).to(DEVICE)
-            training_loop(model_full, data, num_epochs=10)
-            # res_std.append(r1[2]['dev training accuracy'][2])
+            # print("full training:")
+            training_loop(model_full, data, dev, num_epochs=50)
             res_std.append(decode(model_full, dev, do_print, do_plot_attn)[-1])
-        
+
+        #############################################################
+        # TODO: save accuracy data and average loss to plot
+        #############################################################
 
 
         prev_args = args
@@ -458,7 +469,9 @@ def compare(model_args:List):
         print("args: ", args)
         
         print("transfer: \t ",np.average(res_tran))
+        print(np.max(res_tran))
         print("full train: \t", np.average(res_std))
+        print(np.max(res_std))
 
 
         # print(args)
@@ -510,12 +523,11 @@ def eigen_comparison(model_args:List):
 
 if __name__ == "__main__":
     model_args = [
-        # {'vocab_size':27, 'num_positions':20, 'd_model':24, 'd_internal':12, 'num_classes':3, 'num_layers':1},
-        # {'vocab_size':27, 'num_positions':20, 'd_model':48, 'd_internal':24, 'num_classes':3, 'num_layers':1},
-        # {'vocab_size':27, 'num_positions':20, 'd_model':96, 'd_internal':48, 'num_classes':3, 'num_layers':1},
+        {'vocab_size':27, 'num_positions':20, 'd_model':48, 'd_internal':24, 'num_classes':3, 'num_layers':1},
+        {'vocab_size':27, 'num_positions':20, 'd_model':96, 'd_internal':48, 'num_classes':3, 'num_layers':1},
         {'vocab_size':27, 'num_positions':20, 'd_model':192, 'd_internal':96, 'num_classes':3, 'num_layers':1},
-        {'vocab_size':27, 'num_positions':20, 'd_model':192*2, 'd_internal':192, 'num_classes':3, 'num_layers':1},
-        {'vocab_size':27, 'num_positions':20, 'd_model':192*4, 'd_internal':192*2, 'num_classes':3, 'num_layers':1},
+        {'vocab_size':27, 'num_positions':20, 'd_model':384, 'd_internal':192, 'num_classes':3, 'num_layers':1},
+        {'vocab_size':27, 'num_positions':20, 'd_model':768, 'd_internal':384, 'num_classes':3, 'num_layers':1},
     ]
     print("CUDA Device used: ", DEVICE)
     compare(model_args)
