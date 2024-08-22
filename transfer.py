@@ -295,9 +295,11 @@ def train_classifier(args, train:LetterCountingExample, dev:LetterCountingExampl
 def training_loop(model, data, dev, num_epochs=10):
     optimizer = optim.Adam(model.parameters(), lr=1e-4)
     results = []
+    avg_loss = []
     for t in range(num_epochs):
         loss_fnc = nn.NLLLoss()
         model.train()
+        l = 0.
         for i, (d, label) in enumerate(data):
             py, x = model(d)
             loss = loss_fnc(py.view(-1,3), label.view(-1))
@@ -305,16 +307,17 @@ def training_loop(model, data, dev, num_epochs=10):
             model.zero_grad()
             loss.backward()
             optimizer.step()
-
+            l += loss.item()
 
         # print("epoch {}:\t".format(t), decode(model, dev))
 
+        avg_loss.append(l/len(data))
         model.eval()
         results.append(decode(model, dev)[-1])
 
     
     model.train()
-    return model, results
+    return model, results, avg_loss
 
 
 
@@ -445,10 +448,10 @@ def compare(model_args:List):
 
     data = DataLoader(ds, batch_size=128, shuffle=True)
     prev_args = None
-    num_training_epochs = 5
+    num_training_epochs = 50
     transfer_ratio = 0.4
 
-    axis_numbers = [i for i in range(num_training_epochs)]
+    axis_numbers = np.array([i for i in range(num_training_epochs)])
 
     for args in model_args:
         if prev_args == None:   
@@ -460,29 +463,38 @@ def compare(model_args:List):
         transfer_train = []
         full_train = []
         transfer_full_train = []
+
+        loss1 = []
+        loss2 = []
+        loss3 = []
+        loss4 = []
         
-        for t in tqdm.tqdm(range(2)):
+        for t in tqdm.tqdm(range(5)):
         # for t in range(10):
             model = Transformer(**prev_args).to(DEVICE)
-            model, r1 = training_loop(model, data, dev, num_epochs=int(num_training_epochs*transfer_ratio))
+            model, r1, l1 = training_loop(model, data, dev, num_epochs=int(num_training_epochs*transfer_ratio))
             pprev_args.append(r1)
+            loss1.append(l1)
 
             model_transfer = Transformer(**args).to(DEVICE)
             model_transfer.extrap(model, method='onehot')
-            model_transfer, r2 = training_loop(model_transfer, data, dev, num_epochs=num_training_epochs - int(num_training_epochs*transfer_ratio))
+            model_transfer, r2, l2 = training_loop(model_transfer, data, dev, num_epochs=num_training_epochs - int(num_training_epochs*transfer_ratio))
             res_tran.append(np.max(r2))
             transfer_train.append(r2)
+            loss2.append(l2)
 
             model_full = Transformer(**args).to(DEVICE)
-            m, r3 = training_loop(model_full, data, dev, num_epochs=50)
+            m, r3, l3 = training_loop(model_full, data, dev, num_epochs=num_training_epochs)
             res_std.append(decode(model_full, dev, do_print, do_plot_attn)[-1])
             res_tran.append(np.max(r3))
             full_train.append(r3)
+            loss3.append(l3)
 
             model_transfer = Transformer(**args).to(DEVICE)
             model_transfer.extrap(model, method='onehot')
-            model_transfer, r4 = training_loop(model_transfer, data, dev, num_epochs=int(num_training_epochs*transfer_ratio)-num_training_epochs)
+            model_transfer, r4, l4 = training_loop(model_transfer, data, dev, num_epochs=num_training_epochs)
             transfer_full_train.append(r4)
+            loss4.append(l4)
 
         
         pprev_args = average_on_axis(pprev_args)
@@ -490,26 +502,46 @@ def compare(model_args:List):
         full_train = average_on_axis(full_train)
         transfer_full_train = average_on_axis(transfer_full_train)
 
+        loss1 = average_on_axis(loss1)
+        loss2 = average_on_axis(loss2)
+        loss3 = average_on_axis(loss3)
+        loss4 = average_on_axis(loss4)
+
 
         prev_args = args
 
         print("args: ", args)
         
         print("transfer: \t ",np.average(res_tran))
-        print(np.max(res_tran))
+        # print(np.max(res_tran))
         print("full train: \t", np.average(res_std))
-        print(np.max(res_std))
+        # print(np.max(res_std))
 
+        # plotting accuracy across training epochs
         fig, ax = plt.subplots()
 
         ax.plot(axis_numbers, full_train, label="Full training")
-        ax.plot(axis_numbers, np.concatenate((pprev_args, transfer_train)), label='transfer')
+        ax.plot(axis_numbers, np.concatenate((pprev_args, transfer_train)), label='small model transfer')
         ax.plot(axis_numbers, transfer_full_train, label='transfer full train')
         ax.legend()
-        ax.set_title("Learning rate comparison")
-        plt.savefig("output{}.png".format(t))
+        ax.set_title("Learning Rate Comparison")
+        plt.ylabel("Dev set accuracy")
+        plt.xlabel("Training Epochs")
+        plt.grid()
+        plt.savefig("images/acc_model_{}.png".format(args['d_model']))
         
+        # LOSS
+        fig, ax = plt.subplots()
 
+        ax.plot(axis_numbers, loss3, label="Full training")
+        ax.plot(axis_numbers, np.concatenate((loss1, loss2)), label='small model transfer')
+        ax.plot(axis_numbers, loss4, label='transfer full train')
+        ax.legend()
+        ax.set_title("Loss Rate Comparison")
+        plt.ylabel("Training Loss")
+        plt.xlabel("Training Epochs")
+        plt.grid()
+        plt.savefig("images/loss_model_{}.png".format(args['d_model']))
         # print(args)
         # print(results)
         print() 
@@ -560,7 +592,7 @@ if __name__ == "__main__":
     model_args = [
         # {'vocab_size':27, 'num_positions':20, 'd_model':24, 'd_internal':12, 'num_classes':3, 'num_layers':1},
         # {'vocab_size':27, 'num_positions':20, 'd_model':48, 'd_internal':24, 'num_classes':3, 'num_layers':1},
-        # {'vocab_size':27, 'num_positions':20, 'd_model':96, 'd_internal':48, 'num_classes':3, 'num_layers':1},
+        {'vocab_size':27, 'num_positions':20, 'd_model':96, 'd_internal':48, 'num_classes':3, 'num_layers':1},
         {'vocab_size':27, 'num_positions':20, 'd_model':192, 'd_internal':96, 'num_classes':3, 'num_layers':1},
         {'vocab_size':27, 'num_positions':20, 'd_model':384, 'd_internal':192, 'num_classes':3, 'num_layers':1},
         {'vocab_size':27, 'num_positions':20, 'd_model':768, 'd_internal':384, 'num_classes':3, 'num_layers':1},
