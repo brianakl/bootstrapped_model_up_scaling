@@ -33,6 +33,7 @@ For this example we extended the length of the string to demonstrate the rule. I
 
 the majority cannot r<br>
 000000000010101011221
+
 men love the downfall<br>
 000000011002201010001
 
