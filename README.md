@@ -7,8 +7,6 @@ The purpose of this is to determine if there is a way to transfer knowledge lear
 
 ## Background idea
 
-### Principal Component Analysis:
-
 In linear algebra there is a way to condense large matrices into smaller ones using Principal Component Analysis (PCA). More formally, this is a linear dimensionality reduction. Since there is a way to go from large to small, is there a way to go from small to large? It will never be able to perfectly recreate what the larger matrix should have been but, would it be possible for it to at least not start from nothing? Is there some way to transfer that information that the smaller matrix has to the larger one?
 The underlying idea I had behind this is that since both the large and small models are solving the same problem, there must be some similarities between them. As it turns out they share (approximate) eigenvalues. Since the smaller the matrix is the harder it is to find the optimal solution since it's constrained by how much information it could store. But as you train the smaller matrices more, they do approach the eigenvalues of the larger matrix. What I thought this suggested is that the smaller model is learning a projection of the full solution on a lower dimension. You can think of it as finding the global minimum on a paraboloid. In 3 dimensions you can just use gradient descent but if you project it along a plane (some planes will be better than others) you can still get at least some sense of what and where the minimum is even though you are looking at the problem in only two dimensions. 
 The next problem is to find a way to scale this lower dimension solution to a larger matrix.
