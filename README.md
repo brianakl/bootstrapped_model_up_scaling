@@ -21,18 +21,21 @@ The task is given a string of characters, the model must learn to predict, for e
 This task is also specifically chosen since a transformer would particularly benefit from "looking back" in the input with its' self-attention. 
 Below is a sample:
 
-The majority cannot reason; it has no judgment.
+The majority cannot reason; it has no judgment.<br>
 00000000001010101122112022021222212222100012220
 
 For each character, the output should be the number of times that character has occurred before.
 
-men love the downfall and disgrace of the righteous
+men love the downfall and disgrace of the righteous<br>
 000000011002201010001212121000020222121122111222201
 
 For this example we extended the length of the string to demonstrate the rule. In the training set each string will be 20 characters long as demonstrated below. the vocab is also limited to the english letters and space. Numbers are spelled out as individual digits (10 becomes one zero).
 
-the majority cannot r
-men love the downfall
+the majority cannot r<br>
+000000000010101011221
+men love the downfall<br>
+000000011002201010001
+
 ### The dataset
 The dataset was taken from text8. 
 
@@ -96,7 +99,6 @@ The dataset was taken from text8.
 
 
 
-## Optimal training split
 - TODO:
     - compare what kind of transfer learning is best
     - compare transfer training ratio
