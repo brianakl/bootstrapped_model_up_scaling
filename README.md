@@ -67,12 +67,17 @@ The dataset was taken from text8.
 | 384 | 192 | 88.46% | 93.26% | +4.80% |
 | 768 | 384 | 89.80% | 95.04% | +5.24% |
 
-![Accuracy across epochs (model size 192)](images/acc_model_192.png)
-![Loss across epochs (model size 192)](images/loss_model_192.png)
+![Accuracy across epochs (model size 768)](images/acc_model_768.png)
+![Loss across epochs (model size 768)](images/loss_model_768.png)
 
 ![Accuracy across epochs (model size 384)](images/acc_model_384.png)
 ![Loss across epochs (model size 384)](images/loss_model_384.png)
+
+### Expansion to larger task
+
 ## Analysis
+
+### Optimal transfer training stopping
 
 
 ## Conclusion

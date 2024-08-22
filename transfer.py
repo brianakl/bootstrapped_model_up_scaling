@@ -451,7 +451,7 @@ def compare(model_args:List):
     num_training_epochs = 50
     transfer_ratio = 0.4
 
-    axis_numbers = np.array([i for i in range(num_training_epochs)])
+    axis_numbers = np.array([i for i in range(num_training_epochs+1)])
 
     for args in model_args:
         if prev_args == None:   
@@ -524,7 +524,7 @@ def compare(model_args:List):
         ax.plot(axis_numbers, np.concatenate((pprev_args, transfer_train)), label='small model transfer')
         ax.plot(axis_numbers, transfer_full_train, label='transfer full train')
         ax.legend()
-        ax.set_title("Learning Rate Comparison")
+        ax.set_title("Learning Rate Comparison (model size {})".format(args['d_model']))
         plt.ylabel("Dev set accuracy")
         plt.xlabel("Training Epochs")
         plt.grid()
@@ -537,7 +537,7 @@ def compare(model_args:List):
         ax.plot(axis_numbers, np.concatenate((loss1, loss2)), label='small model transfer')
         ax.plot(axis_numbers, loss4, label='transfer full train')
         ax.legend()
-        ax.set_title("Loss Rate Comparison")
+        ax.set_title("Loss Rate Comparison (model size {})".format(args['d_model']))
         plt.ylabel("Training Loss")
         plt.xlabel("Training Epochs")
         plt.grid()
