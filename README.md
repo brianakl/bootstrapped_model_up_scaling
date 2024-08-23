@@ -4,12 +4,14 @@
 # Transfer learning transformers
 ## Abstract
 
-The purpose of this is to determine if there is a way to transfer knowledge learned from a smaller transformer model to a larger one. This could allow for more efficient training of LLM's since a large cost of triaining LLM's is the massive ammount of matmuls that need to be done in pretraining. If there exists a way to pretrain a smaller model and then expand it to a larger model, it could save time and money in pretraining.
+The objective of this research is to explore whether knowledge learned by a smaller Transformer model can be transferred to a larger one. This could significantly improve the efficiency of training Large Language Models (LLMs) by reducing the computational cost associated with pretraining, which often involves extensive matrix multiplications. By investigating the possibility of pretraining a smaller model and then scaling it up to a larger architecture, we aim to identify potential time- and cost-saving strategies for LLM training.
 
 ## Background
 
 In linear algebra there is a way to condense large matrices into smaller ones using Principal Component Analysis (PCA). More formally, this is a linear dimensionality reduction. Since there is a way to go from large to small, is there a way to go from small to large? It will never be able to perfectly recreate what the larger matrix should have been but, would it be possible for it to at least not start from nothing? Is there some way to transfer that information that the smaller matrix has to the larger one?
+
 The underlying idea I had behind this is that since both the large and small models are solving the same problem, there must be some similarities between them. As it turns out they share (approximate) eigenvalues. Since the smaller the matrix is the harder it is to find the optimal solution since it's constrained by how much information it could store. But as you train the smaller matrices more, they do approach the eigenvalues of the larger matrix. What I thought this suggested is that the smaller model is learning a projection of the full solution on a lower dimension. You can think of it as finding the global minimum on a paraboloid. In 3 dimensions you can just use gradient descent but if you project it along a plane (some planes will be better than others) you can still get at least some sense of what and where the minimum is even though you are looking at the problem in only two dimensions. 
+
 The next problem is to find a way to scale this lower dimension solution to a larger matrix.
 
 ## Procedure
@@ -38,7 +40,7 @@ men love the downfall<br>
 000000011002201010001
 
 ### The dataset
-The dataset was taken from text8. 
+The dataset was taken from text8.
 
 
 
@@ -100,12 +102,12 @@ test
 
 
 
-- TODO:
-    - compare what kind of transfer learning is best
-    - compare transfer training ratio
-    - compare ammount of transfer training
-    - plot the training rates (dev set accuracy)
-        - compare epoch to epoch 
-        - compare epoch to epoch for same model size
-        - the transfer learning should show a much sharper learning rate
-        - also compare training loss? why not 
+<!-- - TODO: -->
+<!--     - compare what kind of transfer learning is best -->
+<!--     - compare transfer training ratio -->
+<!--     - compare ammount of transfer training -->
+<!--     - plot the training rates (dev set accuracy) -->
+<!--         - compare epoch to epoch  -->
+<!--         - compare epoch to epoch for same model size -->
+<!--         - the transfer learning should show a much sharper learning rate -->
+<!--         - also compare training loss? why not  -->
