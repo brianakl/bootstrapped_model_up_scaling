@@ -8,11 +8,13 @@ The objective of this research is to explore whether knowledge learned by a smal
 
 ## Background
 
-In linear algebra there is a way to condense large matrices into smaller ones using Principal Component Analysis (PCA). More formally, this is a linear dimensionality reduction. Since there is a way to go from large to small, is there a way to go from small to large? It will never be able to perfectly recreate what the larger matrix should have been but, would it be possible for it to at least not start from nothing? Is there some way to transfer that information that the smaller matrix has to the larger one?
+In linear algebra, Principal Component Analysis (PCA) enables the condensation of large matrices into smaller ones through linear dimensionality reduction. This raises an intriguing question: if we can shrink a large matrix to a smaller one, can we also scale up from small to large? While perfect reconstruction is unlikely, might it be possible to transfer some information from the smaller matrix to its larger counterpart?
 
-The underlying idea I had behind this is that since both the large and small models are solving the same problem, there must be some similarities between them. As it turns out they share (approximate) eigenvalues. Since the smaller the matrix is the harder it is to find the optimal solution since it's constrained by how much information it could store. But as you train the smaller matrices more, they do approach the eigenvalues of the larger matrix. What I thought this suggested is that the smaller model is learning a projection of the full solution on a lower dimension. You can think of it as finding the global minimum on a paraboloid. In 3 dimensions you can just use gradient descent but if you project it along a plane (some planes will be better than others) you can still get at least some sense of what and where the minimum is even though you are looking at the problem in only two dimensions. 
+This idea is inspired by the observation that both smaller and larger models are tackling the same problem, suggesting they share common characteristics. Notably, they exhibit similar approximate eigenvalues. As smaller matrices struggle to capture optimal solutions due to limited storage capacity, their training can drive them closer to the eigenvalues of the larger matrix. This implies that the smaller model learns a lower-dimensional projection of the full solution.
 
-The next problem is to find a way to scale this lower dimension solution to a larger matrix.
+To illustrate this concept, consider finding the global minimum on a paraboloid in three dimensions using gradient descent. However, if we project this problem onto a plane, we can still infer some information about the location and nature of the minimum, even though our dimensionality has been reduced.
+
+The next challenge lies in developing a method to scale up this lower-dimensional solution to a larger matrix, effectively "inflating" the smaller model's capabilities.
 
 ## Procedure
 ### Test
