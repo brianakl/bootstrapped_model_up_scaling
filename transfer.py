@@ -11,6 +11,7 @@ from utils import *
 from torch.utils.data import Dataset, DataLoader, RandomSampler
 import tqdm
 from sklearn.decomposition import PCA
+from scipy.stats import ttest_ind
 
 
 
@@ -170,8 +171,10 @@ class Transformer(nn.Module):
 
             Q = model.tformer.W_Q.weight.data
             z = torch.zeros((self.d_internal - model.d_internal, model.tformer.d_model)).to(DEVICE)
+            # z = torch.randn((self.d_internal - model.d_internal, model.tformer.d_model)).to(DEVICE)
             Q = torch.cat((Q,z), dim=0)
             z = torch.zeros((self.d_model - model.d_model, self.d_model - model.d_model)).to(DEVICE)
+            # z = torch.randn((self.d_model - model.d_model, self.d_model - model.d_model)).to(DEVICE)
             Q = torch.cat((Q,z), dim=-1)
             for i in range(self.d_internal):
                 Q[i][i] = 1 if Q[i][i] == 0 else Q[i][i]
@@ -179,16 +182,20 @@ class Transformer(nn.Module):
 
             V = model.tformer.W_V.weight.data
             z = torch.zeros((self.d_model - model.d_model, model.tformer.d_model)).to(DEVICE)
+            # z = torch.randn((self.d_model - model.d_model, model.tformer.d_model)).to(DEVICE)
             V = torch.cat((V,z), dim=0)
             z = torch.zeros((self.d_model, model.tformer.d_model)).to(DEVICE)
+            # z = torch.randn((self.d_model, model.tformer.d_model)).to(DEVICE)
             V = torch.cat((V,z), dim=-1)
             for i in range(self.d_model):
                 V[i][i] = 1 if V[i][i] == 0 else V[i][i]
 
             K = model.tformer.W_K.weight.data
             z = torch.zeros((self.d_internal - model.d_internal, model.tformer.d_model)).to(DEVICE)
+            # z = torch.randn((self.d_internal - model.d_internal, model.tformer.d_model)).to(DEVICE)
             K = torch.cat((K,z), dim=0)
             z = torch.zeros((self.tformer.d_internal, model.tformer.d_model)).to(DEVICE)
+            # z = torch.randn((self.tformer.d_internal, model.tformer.d_model)).to(DEVICE)
             K = torch.cat((K,z), dim=-1)
             for i in range(self.d_internal):
                 K[i][i] = 1 if K[i][i] == 0 else K[i][i]
@@ -298,7 +305,7 @@ def training_loop(model, data, dev, num_epochs=10):
     avg_loss = []
     for t in range(num_epochs):
         loss_fnc = nn.NLLLoss()
-        model.train()
+        # model.train()
         l = 0.
         for i, (d, label) in enumerate(data):
             py, x = model(d)
@@ -307,13 +314,13 @@ def training_loop(model, data, dev, num_epochs=10):
             model.zero_grad()
             loss.backward()
             optimizer.step()
-            l += loss.item()
+            # l += loss.item()
 
         # print("epoch {}:\t".format(t), decode(model, dev))
 
-        avg_loss.append(l/len(data))
-        model.eval()
-        results.append(decode(model, dev)[-1])
+        # avg_loss.append(l/len(data))
+        # model.eval()
+        # results.append(decode(model, dev)[-1])
 
     
     model.train()
@@ -448,10 +455,10 @@ def compare(model_args:List):
 
     data = DataLoader(ds, batch_size=128, shuffle=True)
     prev_args = None
-    num_training_epochs = 50
+    num_training_epochs = 10
     transfer_ratio = 0.4
 
-    axis_numbers = np.array([i for i in range(num_training_epochs+1)])
+    axis_numbers = np.array([i for i in range(num_training_epochs)])
 
     for args in model_args:
         if prev_args == None:   
@@ -459,89 +466,103 @@ def compare(model_args:List):
             continue
         res_std = []
         res_tran = []
-        pprev_args = []
-        transfer_train = []
-        full_train = []
-        transfer_full_train = []
-
-        loss1 = []
-        loss2 = []
-        loss3 = []
-        loss4 = []
+        # pprev_args = []
+        # transfer_train = []
+        # full_train = []
+        # transfer_full_train = []
+        #
+        # loss1 = []
+        # loss2 = []
+        # loss3 = []
+        # loss4 = []
         
-        for t in tqdm.tqdm(range(5)):
+        for t in tqdm.tqdm(range(100)):
         # for t in range(10):
             model = Transformer(**prev_args).to(DEVICE)
             model, r1, l1 = training_loop(model, data, dev, num_epochs=int(num_training_epochs*transfer_ratio))
-            pprev_args.append(r1)
-            loss1.append(l1)
+            # pprev_args.append(r1)
+            # loss1.append(l1)
 
             model_transfer = Transformer(**args).to(DEVICE)
             model_transfer.extrap(model, method='onehot')
             model_transfer, r2, l2 = training_loop(model_transfer, data, dev, num_epochs=num_training_epochs - int(num_training_epochs*transfer_ratio))
-            res_tran.append(np.max(r2))
-            transfer_train.append(r2)
-            loss2.append(l2)
+            # res_tran.append(np.max(r2))
+            res_tran.append(decode(model_transfer, dev)[-1])
+            # transfer_train.append(r2)
+            # loss2.append(l2)
 
             model_full = Transformer(**args).to(DEVICE)
             m, r3, l3 = training_loop(model_full, data, dev, num_epochs=num_training_epochs)
             res_std.append(decode(model_full, dev, do_print, do_plot_attn)[-1])
-            res_tran.append(np.max(r3))
-            full_train.append(r3)
-            loss3.append(l3)
+            # res_tran.append(np.max(r3))
+            res_tran.append(decode(m, dev)[-1])
+            # full_train.append(r3)
+            # loss3.append(l3)
 
-            model_transfer = Transformer(**args).to(DEVICE)
-            model_transfer.extrap(model, method='onehot')
-            model_transfer, r4, l4 = training_loop(model_transfer, data, dev, num_epochs=num_training_epochs)
-            transfer_full_train.append(r4)
-            loss4.append(l4)
+            # model_transfer = Transformer(**args).to(DEVICE)
+            # model_transfer.extrap(model, method='onehot')
+            # model_transfer, r4, l4 = training_loop(model_transfer, data, dev, num_epochs=num_training_epochs)
+            # transfer_full_train.append(r4)
+            # loss4.append(l4)
 
         
-        pprev_args = average_on_axis(pprev_args)
-        transfer_train = average_on_axis(transfer_train)
-        full_train = average_on_axis(full_train)
-        transfer_full_train = average_on_axis(transfer_full_train)
+        # pprev_args = average_on_axis(pprev_args)
+        # transfer_train = average_on_axis(transfer_train)
+        # full_train = average_on_axis(full_train)
+        # transfer_full_train = average_on_axis(transfer_full_train)
 
-        loss1 = average_on_axis(loss1)
-        loss2 = average_on_axis(loss2)
-        loss3 = average_on_axis(loss3)
-        loss4 = average_on_axis(loss4)
+        # loss1 = average_on_axis(loss1)
+        # loss2 = average_on_axis(loss2)
+        # loss3 = average_on_axis(loss3)
+        # loss4 = average_on_axis(loss4)
 
 
         prev_args = args
 
         print("args: ", args)
         
-        print("transfer: \t ",np.average(res_tran))
+        print("transfer: \t {}\tstd: {}".format(np.average(res_tran), np.std(res_tran)))
         # print(np.max(res_tran))
-        print("full train: \t", np.average(res_std))
+        print("full train: \t{}\tstd: {}".format(np.average(res_std), np.std(res_std)))
         # print(np.max(res_std))
+        t_stat, p_val = ttest_ind(res_tran, res_std)
+        print("p-value:", p_val)
+
+        if p_val < 0.05:
+            print("Statistically significant difference between models (p-value =", p_val, ")")
+        else:
+            print("No statistically significant difference between models (p-value =", p_val, ")")
+        # Calculate the effect size
+        effect_size = np.mean(res_tran) - np.mean(res_std)
+        print("Effect size:", effect_size)
+
+
 
         # plotting accuracy across training epochs
-        fig, ax = plt.subplots()
-
-        ax.plot(axis_numbers, full_train, label="Full training")
-        ax.plot(axis_numbers, np.concatenate((pprev_args, transfer_train)), label='small model transfer')
-        ax.plot(axis_numbers, transfer_full_train, label='transfer full train')
-        ax.legend()
-        ax.set_title("Learning Rate Comparison (model size {})".format(args['d_model']))
-        plt.ylabel("Dev set accuracy")
-        plt.xlabel("Training Epochs")
-        plt.grid()
-        plt.savefig("images/acc_model_{}.png".format(args['d_model']))
-        
-        # LOSS
-        fig, ax = plt.subplots()
-
-        ax.plot(axis_numbers, loss3, label="Full training")
-        ax.plot(axis_numbers, np.concatenate((loss1, loss2)), label='small model transfer')
-        ax.plot(axis_numbers, loss4, label='transfer full train')
-        ax.legend()
-        ax.set_title("Loss Rate Comparison (model size {})".format(args['d_model']))
-        plt.ylabel("Training Loss")
-        plt.xlabel("Training Epochs")
-        plt.grid()
-        plt.savefig("images/loss_model_{}.png".format(args['d_model']))
+        # fig, ax = plt.subplots()
+        #
+        # ax.plot(axis_numbers, full_train, label="Full training")
+        # ax.plot(axis_numbers, np.concatenate((pprev_args, transfer_train)), label='small model transfer')
+        # ax.plot(axis_numbers, transfer_full_train, label='transfer full train')
+        # ax.legend()
+        # ax.set_title("Learning Rate Comparison (model size {})".format(args['d_model']))
+        # plt.ylabel("Dev set accuracy")
+        # plt.xlabel("Training Epochs")
+        # plt.grid()
+        # plt.savefig("images/acc_model_{}.png".format(args['d_model']))
+        # 
+        # # LOSS
+        # fig, ax = plt.subplots()
+        #
+        # ax.plot(axis_numbers, loss3, label="Full training")
+        # ax.plot(axis_numbers, np.concatenate((loss1, loss2)), label='small model transfer')
+        # ax.plot(axis_numbers, loss4, label='transfer full train')
+        # ax.legend()
+        # ax.set_title("Loss Rate Comparison (model size {})".format(args['d_model']))
+        # plt.ylabel("Training Loss")
+        # plt.xlabel("Training Epochs")
+        # plt.grid()
+        # plt.savefig("images/loss_model_{}.png".format(args['d_model']))
         # print(args)
         # print(results)
         print() 
