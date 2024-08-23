@@ -86,7 +86,9 @@ test
 ![Accuracy across epochs (model size 384)](images/acc_model_384.png)
 ![Loss across epochs (model size 384)](images/loss_model_384.png)
 
-### Expansion to larger task
+### Expansion to Larger Task
+
+### Statistical Analysis
 
 ## Analysis
 
