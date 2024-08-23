@@ -6,9 +6,12 @@
 
 The objective of this research is to explore whether knowledge learned by a smaller Transformer model can be transferred to a larger one. This could significantly improve the efficiency of training Large Language Models (LLMs) by reducing the computational cost associated with pretraining, which often involves extensive matrix multiplications. By investigating the possibility of pretraining a smaller model and then scaling it up to a larger architecture, we aim to identify potential time- and cost-saving strategies for LLM training.
 
+## Introduction
+The pretraining of LLMs has become increasingly computationally expensive, requiring vast amounts of memory and processing power. A key factor contributing to this challenge is the sheer size of the models themselves, which necessitate extensive matrix multiplications during training. This paper explores a potential solution to mitigate these costs by investigating whether knowledge learned by smaller Transformer models can be transferred to larger ones, enabling more efficient training of LLMs.
+
 ## Background
 
-In linear algebra, Principal Component Analysis (PCA) enables the condensation of large matrices into smaller ones through linear dimensionality reduction. This raises an intriguing question: if we can shrink a large matrix to a smaller one, can we also scale up from small to large? While perfect reconstruction is unlikely, might it be possible to transfer some information from the smaller matrix to its larger counterpart?
+The motivating idea behind this is Principal Component Analysis (PCA). PCA enables the condensation of large matrices into smaller ones through linear dimensionality reduction. This raises an intriguing question: if we can shrink a large matrix to a smaller one, can we also scale up from small to large? While perfect reconstruction is unlikely, might it be possible to transfer some information from the smaller matrix to its larger counterpart?
 
 This idea is inspired by the observation that both smaller and larger models are tackling the same problem, suggesting they share common characteristics. Notably, they exhibit similar approximate eigenvalues. As smaller matrices struggle to capture optimal solutions due to limited storage capacity, their training can drive them closer to the eigenvalues of the larger matrix. This implies that the smaller model learns a lower-dimensional projection of the full solution.
 
@@ -16,9 +19,11 @@ To illustrate this concept, consider finding the global minimum on a paraboloid 
 
 The next challenge lies in developing a method to scale up this lower-dimensional solution to a larger matrix, effectively "inflating" the smaller model's capabilities.
 
-## Procedure
+## Methodology
+As a proof of concept, a relatively simple task was chosen such that it can be trained locally and quickly. The model used was also small by design to provide give an easy way to compare learning rates.
+
 ### Test
-To test transfer learning capabilty of transformers a simple task was created to test transformer learning. This task is one that a transformer would excel at in comparison to other LLM models/architectures.
+To test transfer learning capabilty of transformers a simple task was used to test transformer learning. This task is one that a transformer would excel at in comparison to other machine learning models/architectures.
 
 ### The Task
 The task is given a string of characters, the model must learn to predict, for each position in the string, how many times the character at that position occurred before, maxing out at 2. This 3-class classification problem is an easy task to set up testing data for to compare results. This is becuase the task can be learned with only 1 single-headed transformer layer without using multiple layers or large neural networks on top of the model. The performance of the transformer is directly preportional to the performance of the model. 
@@ -87,9 +92,12 @@ test
 
 ### Optimal transfer training stopping
 
+### Limitations
 
 ## Conclusion
 
+
+## References
 ******************************* workspace ******************************
 
 ## Personal Notes
