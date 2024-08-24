@@ -40,9 +40,12 @@ The self-attention mechanism inherent in transformers enables them to effectivel
 Below are two example inputs:
 
 ``
-The majority cannot reason; it has no judgment. <br>
-00000000001010101122112022021222212222100012220<br>
-Men love the downfall and disgrace of the righteous<br>
+The majority cannot reason; it has no judgment
+
+0000000000101010112211202202122221222210001222
+
+Men love the downfall and disgrace of the righteous
+
 000000011002201010001212121000020222121122111222201
 ``
 In each example, the output should indicate the frequency count of each character at its corresponding position.
