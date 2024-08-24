@@ -11,7 +11,7 @@ The pretraining of LLMs has become increasingly computationally expensive, requi
 
 ## Background
 
-The motivating idea behind this is Principal Component Analysis (PCA). PCA enables the condensation of large matrices into smaller ones through linear dimensionality reduction. This raises an intriguing question: if we can shrink a large matrix to a smaller one, can we also scale up from small to large? While perfect reconstruction is unlikely, might it be possible to transfer some information from the smaller matrix to its larger counterpart?
+The motivating idea behind this is the Singular Value Decomposition (SVD). SVD enables the condensation of large matrices into smaller ones through linear dimensionality reduction. This raises an intriguing question: if we can shrink a large matrix to a smaller one, can we also scale up from small to large? While perfect reconstruction is unlikely, might it be possible to transfer some information from the smaller matrix to its larger counterpart?
 
 This idea is inspired by the observation that both smaller and larger models are tackling the same problem, suggesting they share common characteristics. Notably, they exhibit similar approximate eigenvalues. As smaller matrices struggle to capture optimal solutions due to limited storage capacity, their training can drive them closer to the eigenvalues of the larger matrix. This implies that the smaller model learns a lower-dimensional projection of the full solution.
 
@@ -26,26 +26,50 @@ As a proof of concept, a relatively simple task was chosen such that it can be t
 To test transfer learning capabilty of transformers a simple task was used to test transformer learning. This task is one that a transformer would excel at in comparison to other machine learning models/architectures.
 
 ### The Task
-The task is given a string of characters, the model must learn to predict, for each position in the string, how many times the character at that position occurred before, maxing out at 2. This 3-class classification problem is an easy task to set up testing data for to compare results. This is becuase the task can be learned with only 1 single-headed transformer layer without using multiple layers or large neural networks on top of the model. The performance of the transformer is directly preportional to the performance of the model. 
-This task is also specifically chosen since a transformer would particularly benefit from "looking back" in the input with its' self-attention. 
-Below is a sample:
 
-The majority cannot reason; it has no judgment.<br>
-00000000001010101122112022021222212222100012220
+The objective of this task is to develop a predictive model that, given a string of characters, outputs the frequency count of each character at its corresponding position. The goal is to predict the number of times a particular character has 
+occurred before, with a maximum count of 2.
 
-For each character, the output should be the number of times that character has occurred before.
+This task serves as an ideal benchmark for evaluating the performance of various models, particularly transformer-based architectures. It can be learned with a single-headed transformer layer without requiring multiple layers or large neural 
+networks. Consequently, the performance of the model is directly proportional to that of the underlying transformer architecture.
 
-men love the downfall and disgrace of the righteous<br>
-000000011002201010001212121000020222121122111222201
+The self-attention mechanism inherent in transformers enables them to effectively "look back" at the input sequence, making this task particularly well-suited for evaluation purposes.
 
-For this example we extended the length of the string to demonstrate the rule. In the training set each string will be 20 characters long as demonstrated below. the vocab is also limited to the english letters and space. Numbers are spelled out as individual digits (10 becomes one zero).
+**Example Inputs**
 
-the majority cannot r<br>
-000000000010101011221
+Below are two example inputs:
 
-men love the downfall<br>
-000000011002201010001
+1. **The majority cannot reason; it has no judgment.**
+        * 00000000001010101122112022021222212222100012220
+2. **Men love the downfall and disgrace of the righteous**
+        * 000000011002201010001212121000020222121122111222201
 
+In each example, the output should indicate the frequency count of each character at its corresponding position.
+
+**Training Set Specifications**
+
+Each string in the training set will consist of 20 characters. The vocabulary is limited to English letters and spaces, with numbers represented as individual digits (e.g., "10" becomes "one zero").
+
+<!-- The task is given a string of characters, the model must learn to predict, for each position in the string, how many times the character at that position occurred before, maxing out at 2. This 3-class classification problem is an easy task to set up testing data for to compare results. This is becuase the task can be learned with only 1 single-headed transformer layer without using multiple layers or large neural networks on top of the model. The performance of the transformer is directly preportional to the performance of the model.  -->
+<!-- This task is also specifically chosen since a transformer would particularly benefit from "looking back" in the input with its' self-attention.  -->
+<!-- Below is a sample: -->
+<!---->
+<!-- The majority cannot reason; it has no judgment.<br> -->
+<!-- 00000000001010101122112022021222212222100012220 -->
+<!---->
+<!-- For each character, the output should be the number of times that character has occurred before. -->
+<!---->
+<!-- men love the downfall and disgrace of the righteous<br> -->
+<!-- 000000011002201010001212121000020222121122111222201 -->
+<!---->
+<!-- For this example we extended the length of the string to demonstrate the rule. In the training set each string will be 20 characters long as demonstrated below. the vocab is also limited to the english letters and space. Numbers are spelled out as individual digits (10 becomes one zero). -->
+<!---->
+<!-- the majority cannot r<br> -->
+<!-- 000000000010101011221 -->
+<!---->
+<!-- men love the downfall<br> -->
+<!-- 000000011002201010001 -->
+<!---->
 ### The dataset
 The dataset was taken from text8.
 

@@ -455,7 +455,7 @@ def compare(model_args:List):
 
     data = DataLoader(ds, batch_size=128, shuffle=True)
     prev_args = None
-    num_training_epochs = 10
+    num_training_epochs = 50
     transfer_ratio = 0.4
 
     axis_numbers = np.array([i for i in range(num_training_epochs)])
@@ -476,7 +476,7 @@ def compare(model_args:List):
         # loss3 = []
         # loss4 = []
         
-        for t in tqdm.tqdm(range(100)):
+        for t in tqdm.tqdm(range(50)):
         # for t in range(10):
             model = Transformer(**prev_args).to(DEVICE)
             model, r1, l1 = training_loop(model, data, dev, num_epochs=int(num_training_epochs*transfer_ratio))
