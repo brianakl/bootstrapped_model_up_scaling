@@ -148,3 +148,9 @@ test
 <!--         - compare epoch to epoch for same model size -->
 <!--         - the transfer learning should show a much sharper learning rate -->
 <!--         - also compare training loss? why not  -->
+<!--    - See if there is an improvement on the efficient compute boundary with this approach? -->
+
+
+
+
+
