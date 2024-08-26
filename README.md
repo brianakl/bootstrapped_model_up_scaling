@@ -98,12 +98,13 @@ test
 
 ## Results
 
-| Model size (d_model) | Model size (d_internal) | Dev set accuracy | Dev accuracy (transfer learning) | Transfer Improvement |
-|:--------------------:|:-----------------------:|:----------------:|:--------------------------------:|:--------------------:|
-| 96 | 48 | 75.83% | 72.44% | -3.39% |
-| 192 | 96 | 82.50% | 84.32% | +1.82% |
-| 384 | 192 | 88.46% | 93.26% | +4.80% |
-| 768 | 384 | 89.80% | 95.04% | +5.24% |
+| Model size (d_model) | Dev set accuracy | Dev accuracy (transfer learning) | Transfer Improvement |
+|:--------------------:|:----------------:|:--------------------------------:|:--------------------:|
+| 64 | 81.42% | 86.81% | +5.39% |
+| 128 | 87.99% | 93.60% | +5.61% |
+| 256 | % | % | +% |
+| 512 | % | % | +% |
+| 1024| % | % | +% |
 
 ![Accuracy across epochs (model size 768)](images/acc_model_768.png)
 ![Loss across epochs (model size 768)](images/loss_model_768.png)
