@@ -106,12 +106,17 @@ test
 | 512 | % | % | +% |
 | 1024| % | % | +% |
 
-![Accuracy across epochs (model size 768)](images/acc_model_768.png)
-![Loss across epochs (model size 768)](images/loss_model_768.png)
+![Accuracy across epochs (model size 1024)](images/acc_model_1024.png)
+![Loss across epochs (model size 1024)](images/loss_model_1024.png)
 
-![Accuracy across epochs (model size 384)](images/acc_model_384.png)
-![Loss across epochs (model size 384)](images/loss_model_384.png)
+![Accuracy across epochs (model size 512)](images/acc_model_512.png)
+![Loss across epochs (model size 512)](images/loss_model_512.png)
 
+![Accuracy across epochs (model size 256)](images/acc_model_256.png)
+![Loss across epochs (model size 256)](images/loss_model_256.png)
+
+![Accuracy across epochs (model size 128)](images/acc_model_128.png)
+![Loss across epochs (model size 128)](images/loss_model_128.png)
 ### Expansion to Larger Task
 
 ### Statistical Analysis
