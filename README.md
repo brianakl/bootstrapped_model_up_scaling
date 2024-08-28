@@ -79,7 +79,6 @@ The dataset was taken from text8.
 ### Model Architecture
 test
 test
-test
 
 
 ### Steps 
