@@ -85,15 +85,15 @@ test
 - adding one hot vectors to each matrix to expand it that way
     - this works, knowlede from a 
     - test protocol:
-        - Train a transformer for 5 epochs at half the size n/2
+        - Train a transformer for 20 epochs at half the size n/2
         - expand the transformer to full size by simply adding it to the n sized identity
-        - train for an additional 5 epochs
-        - train a seperate model at full size n for 10 epochs
+        - train for an additional 30 epochs
+        - train a seperate model at full size n for 50 epochs
         - compare average dev set accuracy
-        - this test was performed 100 times and averaged     
+        - this test was performed 25 times and averaged     
         - test still needs to be performed more to obtain a statistically valid result
     - results:
-        - with smaller models that acheive worse performance, there seems to be little to no improvement, this is with matrix sizes of <48
+        - with smaller models that acheive worse performance, there seems to be little to no improvement, this is with matrix sizes of <64
         - with larger models, the improvement is larger
 
 ## Results
