@@ -1,10 +1,10 @@
 ******************** WORK IN PROGRESS *********************
 
 
-# Transformer Knowledge Expansion
+# Bootstrapped Model Scaling (BMS)
 ## Abstract
 
-The objective of this research is to explore whether knowledge learned by a smaller Transformer model can be transferred to a larger one. This could significantly improve the efficiency of training Large Language Models (LLMs) by reducing the computational cost associated with pretraining, which often involves extensive matrix multiplications. By investigating the possibility of pretraining a smaller model and then scaling it up to a larger architecture, model knowledge expansion (KE), we aim to identify potential time- and cost-saving strategies for LLM training.
+The objective of this research is to explore whether knowledge learned by a smaller Transformer model can be transferred to a larger one. This could significantly improve the efficiency of training Large Language Models (LLMs) by reducing the computational cost associated with pretraining, which often involves extensive matrix multiplications. By investigating the possibility of pretraining a smaller model and then scaling it up to a larger architecture, bootstrapped model scaling (BMS), we aim to identify potential time- and cost-saving strategies for LLM training.
 
 ## Introduction
 The pretraining of LLMs has become increasingly computationally expensive, requiring vast amounts of memory and processing power. A key factor contributing to this challenge is the sheer size of the models themselves, which necessitate extensive matrix multiplications during training. This paper explores a potential solution to mitigate these costs by investigating whether knowledge learned by smaller Transformer models can be transferred to larger ones, enabling more efficient training of LLMs.
@@ -23,7 +23,7 @@ The next challenge lies in developing a method to scale up this lower-dimensiona
 As a proof of concept, a relatively simple task was chosen such that it can be trained locally and quickly. The model used was also small by design to provide give an easy way to compare learning rates.
 
 ### Test
-To test transfer learning capabilty of transformers a simple task was used to test transformer learning. This task is one that a transformer would excel at in comparison to other machine learning models/architectures.
+To test the BMS capabilty of transformers a simple task was used to test transformer learning. This task is one that a transformer would excel at in comparison to other machine learning models/architectures.
 
 ### The Task
 
