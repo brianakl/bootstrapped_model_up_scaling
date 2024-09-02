@@ -299,13 +299,13 @@ def train_classifier(args, train:LetterCountingExample, dev:LetterCountingExampl
     training_loop(model, data, num_epochs)
 
 
-def training_loop(model, data, dev, num_epochs=10):
+def training_loop(model, data, dev=None, num_epochs=10):
     optimizer = optim.Adam(model.parameters(), lr=1e-4)
     results = []
     avg_loss = []
     for t in range(num_epochs):
         loss_fnc = nn.NLLLoss()
-        # model.train()
+        model.train()
         l = 0.
         for i, (d, label) in enumerate(data):
             py, x = model(d)
@@ -314,17 +314,23 @@ def training_loop(model, data, dev, num_epochs=10):
             model.zero_grad()
             loss.backward()
             optimizer.step()
-            # l += loss.item()
+            l += loss.item()
 
         # print("epoch {}:\t".format(t), decode(model, dev))
 
-        # avg_loss.append(l/len(data))
-        # model.eval()
-        # results.append(decode(model, dev)[-1])
+        if dev != None:
+            model.eval()
+            r = decode(model, dev)
+            avg_loss.append(l/len(data))
+            results.append(r[-1])
 
     
     model.train()
-    return model, results, avg_loss
+
+    if dev != None:
+        return model, results, avg_loss
+
+    return model
 
 
 
@@ -420,17 +426,13 @@ def average_on_axis(arr:List[List]):
         avg += np.array(row)
     return avg/n
 
-
-def compare(model_args:List):
-    # Take a specific model args, train it, and print results
-    # Constructs the vocabulary: lowercase letters a to z and space
+def compare_and_graph(model_args:List):
     vocab = [chr(ord('a') + i) for i in range(0, 26)] + [' ']
     vocab_index = Indexer()
     train_data='data/lettercounting-train.txt' 
     dev_data='data/lettercounting-dev.txt'
     do_print=False
     do_plot_attn=False
-    num_epochs=10
     for char in vocab:
         vocab_index.add_and_get_index(char)
     if do_print:
@@ -456,7 +458,7 @@ def compare(model_args:List):
     data = DataLoader(ds, batch_size=128, shuffle=True)
     prev_args = None
     num_training_epochs = 50
-    transfer_ratio = 0.4
+    transfer_ratio = 0.2
 
     axis_numbers = np.array([i for i in range(num_training_epochs)])
 
@@ -466,55 +468,66 @@ def compare(model_args:List):
             continue
         res_std = []
         res_tran = []
-        # pprev_args = []
-        # transfer_train = []
-        # full_train = []
-        # transfer_full_train = []
-        #
-        # loss1 = []
-        # loss2 = []
-        # loss3 = []
-        # loss4 = []
+        res_full_train = []
+        pprev_args = []
+        transfer_train = []
+        full_train = []
+        transfer_full_train = []
         
-        for t in tqdm.tqdm(range(50)):
+        loss1 = []
+        loss2 = []
+        loss3 = []
+        loss4 = []
+        
+        for t in tqdm.tqdm(range(25)):
         # for t in range(10):
+            # Small model for transfer
             model = Transformer(**prev_args).to(DEVICE)
             model, r1, l1 = training_loop(model, data, dev, num_epochs=int(num_training_epochs*transfer_ratio))
-            # pprev_args.append(r1)
-            # loss1.append(l1)
+            pprev_args.append(r1)
+            loss1.append(l1)
 
+            # Larger transfer model
             model_transfer = Transformer(**args).to(DEVICE)
             model_transfer.extrap(model, method='onehot')
-            model_transfer, r2, l2 = training_loop(model_transfer, data, dev, num_epochs=num_training_epochs - int(num_training_epochs*transfer_ratio))
-            # res_tran.append(np.max(r2))
-            res_tran.append(decode(model_transfer, dev)[-1])
-            # transfer_train.append(r2)
-            # loss2.append(l2)
+            # model_transfer, r2, l2 = training_loop(model_transfer, data, dev, num_epochs=num_training_epochs - int(num_training_epochs*transfer_ratio))
+            model_transfer, r2, l2 = training_loop(model_transfer, data, dev, num_epochs=num_training_epochs)
+            res_tran.append(np.max(r2[:int(num_training_epochs*(1-transfer_ratio))]))
+            res_full_train.append(np.max(r2))
+            # res_tran.append(decode(model_transfer, dev)[-1])
+            # res_tran.append(r2[-1])
+            transfer_train.append(r2[:int(num_training_epochs*(1-transfer_ratio))])
+            transfer_full_train.append(r2)
+            loss2.append(l2[:int(num_training_epochs*(1-transfer_ratio))])
+            loss4.append(l2)
 
+            # Full sized model no transfer
             model_full = Transformer(**args).to(DEVICE)
             m, r3, l3 = training_loop(model_full, data, dev, num_epochs=num_training_epochs)
-            res_std.append(decode(model_full, dev, do_print, do_plot_attn)[-1])
-            # res_tran.append(np.max(r3))
-            res_tran.append(decode(m, dev)[-1])
-            # full_train.append(r3)
-            # loss3.append(l3)
+            # res_std.append(decode(model_full, dev, do_print, do_plot_attn)[-1])
+            max_r3 = np.max(r3)
+            res_std.append(max_r3)
+            # res_tran.append(decode(m, dev)[-1])
+            full_train.append(r3)
+            loss3.append(l3)
 
+            # Transfer training for remianing epochs for comparison
             # model_transfer = Transformer(**args).to(DEVICE)
-            # model_transfer.extrap(model, method='onehot')
-            # model_transfer, r4, l4 = training_loop(model_transfer, data, dev, num_epochs=num_training_epochs)
-            # transfer_full_train.append(r4)
-            # loss4.append(l4)
+            # model_transfer.extrap(model_transfer, method='onehot')
+            # model_transfer, r4, l4 = training_loop(model_transfer, data, dev, num_epochs=int(num_training_epochs*transfer_ratio))
+            # transfer_full_train.append(r2+r4)
+            # loss4.append(l2+l4)
 
         
-        # pprev_args = average_on_axis(pprev_args)
-        # transfer_train = average_on_axis(transfer_train)
-        # full_train = average_on_axis(full_train)
-        # transfer_full_train = average_on_axis(transfer_full_train)
+        pprev_args = average_on_axis(pprev_args)
+        transfer_train = average_on_axis(transfer_train)
+        full_train = average_on_axis(full_train)
+        transfer_full_train = average_on_axis(transfer_full_train)
 
-        # loss1 = average_on_axis(loss1)
-        # loss2 = average_on_axis(loss2)
-        # loss3 = average_on_axis(loss3)
-        # loss4 = average_on_axis(loss4)
+        loss1 = average_on_axis(loss1)
+        loss2 = average_on_axis(loss2)
+        loss3 = average_on_axis(loss3)
+        loss4 = average_on_axis(loss4)
 
 
         prev_args = args
@@ -522,9 +535,9 @@ def compare(model_args:List):
         print("args: ", args)
         
         print("transfer: \t {}\tstd: {}".format(np.average(res_tran), np.std(res_tran)))
-        # print(np.max(res_tran))
         print("full train: \t{}\tstd: {}".format(np.average(res_std), np.std(res_std)))
-        # print(np.max(res_std))
+        print("full transfer train: \t{}\tstd: {}".format(np.average(res_full_train), np.std(res_full_train)))
+        print("Transfer train vs. Full train")
         t_stat, p_val = ttest_ind(res_tran, res_std)
         print("p-value:", p_val)
 
@@ -535,37 +548,55 @@ def compare(model_args:List):
         # Calculate the effect size
         effect_size = np.mean(res_tran) - np.mean(res_std)
         print("Effect size:", effect_size)
+        effect_size = effect_size / np.sqrt((np.std(res_tran)**2 + np.std(res_std)**2)/2)
+        print("Standardized Effect size (Cohen's d):", effect_size)
+
+        print("Transfer full train vs. Full train")
+        t_stat, p_val = ttest_ind(res_full_train, res_std)
+        print("p-value:", p_val)
+
+        if p_val < 0.05:
+            print("Statistically significant difference between models (p-value =", p_val, ")")
+        else:
+            print("No statistically significant difference between models (p-value =", p_val, ")")
+        # Calculate the effect size
+        effect_size = np.mean(res_full_train) - np.mean(res_std)
+        print("Effect size:", effect_size)
+        effect_size = effect_size / np.sqrt((np.std(res_full_train)**2 + np.std(res_std)**2)/2)
+        print("Standardized Effect size (Cohen's d):", effect_size)
 
 
 
         # plotting accuracy across training epochs
-        # fig, ax = plt.subplots()
-        #
-        # ax.plot(axis_numbers, full_train, label="Full training")
-        # ax.plot(axis_numbers, np.concatenate((pprev_args, transfer_train)), label='small model transfer')
-        # ax.plot(axis_numbers, transfer_full_train, label='transfer full train')
-        # ax.legend()
-        # ax.set_title("Learning Rate Comparison (model size {})".format(args['d_model']))
-        # plt.ylabel("Dev set accuracy")
-        # plt.xlabel("Training Epochs")
-        # plt.grid()
+        fig, ax = plt.subplots()
+        
+        ax.plot(axis_numbers, full_train, label="Full training")
+        ax.plot(axis_numbers, np.concatenate((pprev_args, transfer_train)), label='small model transfer')
+        ax.plot(axis_numbers, transfer_full_train, label='transfer full train')
+        ax.legend()
+        ax.set_title("Learning Rate Comparison (model size {})".format(args['d_model']))
+        plt.ylabel("Dev set accuracy")
+        plt.xlabel("Training Epochs")
+        plt.grid()
+        plt.show()
         # plt.savefig("images/acc_model_{}.png".format(args['d_model']))
-        # 
-        # # LOSS
-        # fig, ax = plt.subplots()
-        #
-        # ax.plot(axis_numbers, loss3, label="Full training")
-        # ax.plot(axis_numbers, np.concatenate((loss1, loss2)), label='small model transfer')
-        # ax.plot(axis_numbers, loss4, label='transfer full train')
-        # ax.legend()
-        # ax.set_title("Loss Rate Comparison (model size {})".format(args['d_model']))
-        # plt.ylabel("Training Loss")
-        # plt.xlabel("Training Epochs")
-        # plt.grid()
+        
+        # LOSS
+        fig, ax = plt.subplots()
+        
+        ax.plot(axis_numbers, loss3, label="Full training")
+        ax.plot(axis_numbers, np.concatenate((loss1, loss2)), label='small model transfer')
+        ax.plot(axis_numbers, loss4, label='transfer full train')
+        ax.legend()
+        ax.set_title("Loss Rate Comparison (model size {})".format(args['d_model']))
+        plt.ylabel("Training Loss")
+        plt.xlabel("Training Epochs")
+        plt.grid()
+        plt.show()
         # plt.savefig("images/loss_model_{}.png".format(args['d_model']))
         # print(args)
         # print(results)
-        print() 
+        print()
 
 
 def do_pca(models:List):
@@ -611,20 +642,17 @@ def eigen_comparison(model_args:List):
 
 if __name__ == "__main__":
     model_args = [
-        # {'vocab_size':27, 'num_positions':20, 'd_model':24, 'd_internal':12, 'num_classes':3, 'num_layers':1},
-        # {'vocab_size':27, 'num_positions':20, 'd_model':48, 'd_internal':24, 'num_classes':3, 'num_layers':1},
-        {'vocab_size':27, 'num_positions':20, 'd_model':96, 'd_internal':48, 'num_classes':3, 'num_layers':1},
-        {'vocab_size':27, 'num_positions':20, 'd_model':192, 'd_internal':96, 'num_classes':3, 'num_layers':1},
-        {'vocab_size':27, 'num_positions':20, 'd_model':384, 'd_internal':192, 'num_classes':3, 'num_layers':1},
-        {'vocab_size':27, 'num_positions':20, 'd_model':768, 'd_internal':384, 'num_classes':3, 'num_layers':1},
+        # {'vocab_size':27, 'num_positions':20, 'd_model':16, 'd_internal':8, 'num_classes':3, 'num_layers':1},    # these two model sizes are too small to transfer information
+        # {'vocab_size':27, 'num_positions':20, 'd_model':32, 'd_internal':16, 'num_classes':3, 'num_layers':1},
+        # {'vocab_size':27, 'num_positions':20, 'd_model':64, 'd_internal':32, 'num_classes':3, 'num_layers':1},
+        {'vocab_size':27, 'num_positions':20, 'd_model':128, 'd_internal':64, 'num_classes':3, 'num_layers':1},
+        {'vocab_size':27, 'num_positions':20, 'd_model':256, 'd_internal':128, 'num_classes':3, 'num_layers':1},
+        # {'vocab_size':27, 'num_positions':20, 'd_model':512, 'd_internal':256, 'num_classes':3, 'num_layers':1},
     ]
+
     print("CUDA Device used: ", DEVICE)
-    compare(model_args)
+    compare_and_graph(model_args)
     # eigen_comparison(model_args)
-
-
-
-
 
 
 
