@@ -25,11 +25,9 @@ To test the BUS capabilty of transformers a simple task was used to test transfo
 
 ### The Task
 
-The objective of this task is to develop a predictive model that, given a string of characters, outputs the frequency count of each character at its corresponding position. The goal is to predict the number of times a particular character has 
-occurred before, with a maximum count of 2.
+The objective of this task is to develop a predictive model that, given a string of characters, outputs the frequency count of each character at its corresponding position. The goal is to predict the number of times a particular character has occurred before, with a maximum count of 2. This makes it a 3 class classification problem.
 
-This task serves as an ideal benchmark for evaluating the performance of various models, particularly transformer-based architectures. It can be learned with a single-headed transformer layer without requiring multiple layers or large neural 
-networks. Consequently, the performance of the model is directly proportional to that of the underlying transformer architecture.
+This task serves as an ideal benchmark for evaluating the performance of various models, particularly transformer-based architectures. It can be learned with a single-headed transformer layer without requiring multiple layers or large neural networks. Consequently, the performance of the model is directly proportional to that of the underlying transformer architecture.
 
 The self-attention mechanism inherent in transformers enables them to effectively "look back" at the input sequence, making this task particularly well-suited for evaluation purposes.
 
@@ -80,6 +78,7 @@ test
 
 ### Steps 
 - attempted doubling every col and row
+    - unsuccessful attempt, no learning improvement
 - adding one hot vectors to each matrix to expand it that way
     - this works, knowlede from a 
     - test protocol:
@@ -93,6 +92,8 @@ test
     - results:
         - with smaller models that acheive worse performance, there seems to be little to no improvement, this is with matrix sizes of <64
         - with larger models, the improvement is larger
+
+![Matrix example](images/BUS_ex.png)
 
 ## Results
 
