@@ -15,8 +15,6 @@ The motivating idea behind this is the Singular Value Decomposition (SVD). SVD e
 
 This idea is inspired by the observation that both smaller and larger models are tackling the same problem, suggesting they share common characteristics. Notably, they exhibit similar approximate eigenvalues. As smaller matrices struggle to capture optimal solutions due to limited dimensionality, their training can drive them closer to the eigenvalues of the larger matrix. This implies that the smaller model learns a lower-dimensional projection of the full solution.
 
-To illustrate this concept, consider finding the global minimum on a paraboloid in three dimensions using gradient descent. However, if we project this problem onto a plane, we can still infer some information about the location and nature of the minimum, even though our dimensionality has been reduced.
-
 The next challenge lies in developing a method to scale up this lower-dimensional solution to a larger matrix, effectively "inflating" the smaller model's capabilities.
 
 ## Methodology
