@@ -196,7 +196,7 @@ class MultiHeadTransformer(nn.Module):
         x = self.nn(x)
         return self.Softmax(x)
 
-    def BUS(self, model:MultiHeadTransformer):
+    def BUS(self, model):
         """
         :param model: smaller model that will be used as a basis to perform BUS (assuming same number of heads)
         """
@@ -239,9 +239,6 @@ def training_loop(model, data, dev=None, num_epochs=10):
     return model, avg_loss
 
 
-def tokenize_function(example):
-    return tokenizer(example["text"], padding='max_length', truncation=True)
-
 
 def model_run(model_args, epochs, num_trials, transfer_ratio, do_logging):
     data = load_dataset('stanfordnlp/sst2')
@@ -253,9 +250,9 @@ def model_run(model_args, epochs, num_trials, transfer_ratio, do_logging):
 
     tokenizer = AutoTokenizer.from_pretrained('bert-base-cased')
 
-    train = train.map(tokenize_function, batched=numpy.True)
-    validation = validation.map(tokenize_function, batched=numpy.True)
-    test = test.map(tokenize_function, batched=numpy.True)
+    train = train.map(lambda ex: tokenizer(ex['sentence'], padding='max_length', truncation=True), batched=True)
+    validation = validation.map(lambda ex: tokenizer(ex['sentence'], padding='max_length', truncation=True), batched=True)
+    test = test.map(lambda ex: tokenizer(ex['sentence'], padding='max_length', truncation=True), batched=True)
 
 
 
