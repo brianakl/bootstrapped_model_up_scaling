@@ -81,7 +81,7 @@ class TransformerLayer(nn.Module):
         return output, Attn
 
 class Transformer(nn.Module):
-    def __init__(self, vocab_size, num_positions, d_model, d_internal, num_classes, **args):
+    def __init__(self, d_model, d_internal, num_classes, **args):
         super().__init__()
         self.d_model = d_model
         self.d_internal = d_internal
@@ -179,9 +179,9 @@ class MultiHeadTransformer(nn.Module):
         """
         super().__init__()
         self.num_heads = num_heads
-        self.penc = PositionalEncoding(d_model=d_model, num_positions=num_positions, batched=self.b)
+        self.penc = PositionalEncoding(d_model=d_model, num_positions=num_positions, batched=True)
         self.embed = torch.nn.Embedding(vocab_size, d_model).to(DEVICE)
-        self.heads = [Transformer(vocab_size, num_positions, d_model, d_internal, num_classes) for _ in range(num_heads)]
+        self.heads = [Transformer(d_model, d_internal, num_classes) for _ in range(num_heads)]
         self.nn = torch.nn.Sequential(
             torch.nn.Linear(d_model*num_heads, d_model),
             torch.nn.Dropout(),
@@ -274,7 +274,8 @@ def model_run(model_args, epochs, num_trials, transfer_ratio, do_logging):
         loss4 = []
 
         for t in tqdm.tqdm(range(num_trials)):
-            model = MultiHeadTransformer(**prev_args)
+            model = MultiHeadTransformer(**prev_args).to(DEVICE)
+            print(model(train['sentence'][0]))
 
 
 
@@ -285,8 +286,8 @@ if __name__ == "__main__":
         # {'vocab_size':27, 'num_positions':20, 'd_model':16, 'd_internal':8, 'num_classes':3, 'num_layers':1},    # these two model sizes are too small to transfer information
         # {'vocab_size':27, 'num_positions':20, 'd_model':32, 'd_internal':16, 'num_classes':3, 'num_layers':1},
         # {'vocab_size':27, 'num_positions':20, 'd_model':64, 'd_internal':32, 'num_classes':3, 'num_layers':1},
-        {'vocab_size':2000, 'num_positions':20, 'd_model':128, 'd_internal':64, 'num_classes':2, 'num_heads':1},
-        {'vocab_size':2000, 'num_positions':20, 'd_model':256, 'd_internal':128, 'num_classes':2, 'num_heads':1},
+        {'vocab_size':2000, 'num_positions':200, 'd_model':128, 'd_internal':64, 'num_classes':2, 'num_heads':1},
+        {'vocab_size':2000, 'num_positions':200, 'd_model':256, 'd_internal':128, 'num_classes':2, 'num_heads':1},
         # {'vocab_size':27, 'num_positions':20, 'd_model':512, 'd_internal':256, 'num_classes':3, 'num_layers':1},
     ]
 
