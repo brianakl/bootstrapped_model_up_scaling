@@ -248,6 +248,7 @@ def model_run(model_args, epochs, num_trials, transfer_ratio, do_logging):
 
     prev_args = None
 
+    num_epochs = 50
     tokenizer = AutoTokenizer.from_pretrained('bert-base-cased')
 
     train = train.map(lambda ex: tokenizer(ex['sentence'], padding='max_length', truncation=True), batched=True)
@@ -274,8 +275,23 @@ def model_run(model_args, epochs, num_trials, transfer_ratio, do_logging):
         loss4 = []
 
         for t in tqdm.tqdm(range(num_trials)):
+            # small model for BUS
+            # cannot pass str to model, embeddings expect indices not str's
             model = MultiHeadTransformer(**prev_args).to(DEVICE)
             print(model(train['sentence'][0]))
+            model, l1, r1 = training_loop(model, train, validation, num_epochs*transfer_ratio)
+            loss1.append(l1)
+
+
+            # larger model for BUS
+            m = MultiHeadTransformer(**args).to(DEVICE)
+            m.BUS(model)
+            m1, l2, r2 = training_loop(m, train, validation, num_epochs)
+            loss2.append(l1+l2[:num_epochs*(1-transfer_ratio)])
+            res_tran.append(r1+r2[:num_epochs*(1-transfer_ratio)])
+            res_full_train.append(r2)
+            # TODO: do pytorch logging instead this is so silly :P
+
 
 
 
