@@ -81,36 +81,35 @@ class TransformerLayer(nn.Module):
         return output, Attn
 
 class Transformer(nn.Module):
-    def __init__(self, vocab_size, num_positions, d_model, d_internal, num_classes, num_layers, **args):
+    def __init__(self, vocab_size, num_positions, d_model, d_internal, num_classes, **args):
         super().__init__()
-        self.num_layers = num_layers
         self.d_model = d_model
         self.d_internal = d_internal
 
         self.tformer = TransformerLayer(d_model, d_internal)
         self.Softmax = torch.nn.LogSoftmax(dim=-1)
         self.FFN = torch.nn.Sequential(
-            torch.nn.Linear(d_model, d_internal),
+            torch.nn.Linear(d_model, d_model),
             torch.nn.ReLU(),
             torch.nn.Dropout(),
-            torch.nn.Linear(d_internal, num_classes)
+            torch.nn.Linear(d_model, num_classes)
         )
         self.b = False
-        self.penc = PositionalEncoding(d_model=d_model, num_positions=num_positions, batched=self.b)
-        self.embed = torch.nn.Embedding(vocab_size, d_model).to(DEVICE)
+        # self.penc = PositionalEncoding(d_model=d_model, num_positions=num_positions, batched=self.b)
+        # self.embed = torch.nn.Embedding(vocab_size, d_model).to(DEVICE)
 
         self.double()
 
 
-    def forward(self, indices):
+    def forward(self, x):
         """
         :param indices: list of input indices
         :return: A tuple of softmax log probabilities and a list of the attention maps 
         """
-        t = self.embed(indices.to(DEVICE))
-        t = self.penc(t)
-        t = t.to(torch.float64)
-        t, attn = self.tformer(t)
+        # t = self.embed(indices.to(DEVICE))
+        # t = self.penc(t)
+        # t = t.to(torch.float64)
+        t, attn = self.tformer(x)
         x = self.FFN(t)
         x = self.Softmax(x)
         return x, [attn]
@@ -169,8 +168,41 @@ class Transformer(nn.Module):
 
 
 class MultiHeadTransformer(nn.Module):
-    def __init__(self, num_heads, model_args) -> None:
+    def __init__(self, num_heads, vocab_size, num_positions, d_model, d_internal, num_classes) -> None:
+        """
+        :param num_heads: number of heads 
+        :param vocab_size: size of vocab for embeddings
+        :param num_positions: context length
+        :param d_model: d_model of transformer
+        :param d_internal: d_internal of transformer
+        :param num_classes: number of classes for task (sentiment analysis = 2)
+        """
         super().__init__()
+        self.num_heads = num_heads
+        self.penc = PositionalEncoding(d_model=d_model, num_positions=num_positions, batched=self.b)
+        self.embed = torch.nn.Embedding(vocab_size, d_model).to(DEVICE)
+        self.heads = [Transformer(vocab_size, num_positions, d_model, d_internal, num_classes) for _ in range(num_heads)]
+        self.nn = torch.nn.Sequential(
+            torch.nn.Linear(d_model*num_heads, d_model),
+            torch.nn.Dropout(),
+            torch.nn.ReLU(),
+            torch.nn.Linear(d_model, d_model),
+        )
+        self.Softmax = torch.nn.LogSoftmax(dim=-1)
+
+    def forward(self, x):
+        x = self.embed(x) + self.penc(x)
+        x = torch.cat([self.heads[i](x) for i in range(self.num_heads)], dim=-1)
+        x = self.nn(x)
+        return self.Softmax(x)
+
+    def BUS(self, model:MultiHeadTransformer):
+        """
+        :param model: smaller model that will be used as a basis to perform BUS (assuming same number of heads)
+        """
+        for i in range(self.num_heads):
+            self.heads[i].extrap(model.heads[i])
+
 
 
 def training_loop(model, data, dev=None, num_epochs=10):
@@ -191,22 +223,24 @@ def training_loop(model, data, dev=None, num_epochs=10):
             l += loss.item()
 
         # print("epoch {}:\t".format(t), decode(model, dev))
+        avg_loss.append(l/len(data))
 
         if dev != None:
             model.eval()
             r = decode(model, dev)
-            avg_loss.append(l/len(data))
             results.append(r[-1])
 
     
     model.train()
 
     if dev != None:
-        return model, results, avg_loss
+        return model, avg_loss, results 
 
-    return model
+    return model, avg_loss
 
 
+def tokenize_function(example):
+    return tokenizer(example["text"], padding='max_length', truncation=True)
 
 
 def model_run(model_args, epochs, num_trials, transfer_ratio, do_logging):
@@ -218,6 +252,12 @@ def model_run(model_args, epochs, num_trials, transfer_ratio, do_logging):
     prev_args = None
 
     tokenizer = AutoTokenizer.from_pretrained('bert-base-cased')
+
+    train = train.map(tokenize_function, batched=numpy.True)
+    validation = validation.map(tokenize_function, batched=numpy.True)
+    test = test.map(tokenize_function, batched=numpy.True)
+
+
 
     for args in model_args:
         if prev_args == None:
@@ -237,7 +277,7 @@ def model_run(model_args, epochs, num_trials, transfer_ratio, do_logging):
         loss4 = []
 
         for t in tqdm.tqdm(range(num_trials)):
-            model = Transformer(**prev_args).to(DEVICE)
+            model = MultiHeadTransformer(**prev_args)
 
 
 
@@ -248,12 +288,12 @@ if __name__ == "__main__":
         # {'vocab_size':27, 'num_positions':20, 'd_model':16, 'd_internal':8, 'num_classes':3, 'num_layers':1},    # these two model sizes are too small to transfer information
         # {'vocab_size':27, 'num_positions':20, 'd_model':32, 'd_internal':16, 'num_classes':3, 'num_layers':1},
         # {'vocab_size':27, 'num_positions':20, 'd_model':64, 'd_internal':32, 'num_classes':3, 'num_layers':1},
-        {'vocab_size':27, 'num_positions':20, 'd_model':128, 'd_internal':64, 'num_classes':3, 'num_layers':1},
-        {'vocab_size':27, 'num_positions':20, 'd_model':256, 'd_internal':128, 'num_classes':3, 'num_layers':1},
+        {'vocab_size':2000, 'num_positions':20, 'd_model':128, 'd_internal':64, 'num_classes':2, 'num_heads':1},
+        {'vocab_size':2000, 'num_positions':20, 'd_model':256, 'd_internal':128, 'num_classes':2, 'num_heads':1},
         # {'vocab_size':27, 'num_positions':20, 'd_model':512, 'd_internal':256, 'num_classes':3, 'num_layers':1},
     ]
 
-    model_run(model_args, epochs=50, num_trials=10, do_logging=True)
+    model_run(model_args, epochs=50, num_trials=10, do_logging=True, transfer_ratio=0.15)
 
 
 
