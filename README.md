@@ -1,7 +1,7 @@
 ******************** WORK IN PROGRESS (Draft 0) *********************
 
 
-# Bootstrapped Up Scaling (BUS)
+# Bootstrapped Up Scaling (BUS) / The Student Becomes the Teacher
 ## Abstract
 
 The objective of this research is to explore whether knowledge learned by a smaller Transformer model can be transferred to a larger one. This could significantly improve the efficiency of training Large Language Models (LLMs) by reducing the computational cost associated with pretraining, which often involves extensive matrix multiplications. By investigating the possibility of pretraining a smaller model and then scaling it up to a larger architecture, bootstrapped  up scaling (BUS), we aim to identify potential time- and cost-saving strategies for LLM training.
