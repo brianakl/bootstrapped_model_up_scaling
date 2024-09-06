@@ -136,6 +136,13 @@ test
 
 ## References
 ******************************* workspace ******************************
+- Attention is all you need, Vaswani et. al.,  	arXiv:1706.03762 [cs.CL]
+- Linformer: Self-Attention with Linear Complexity, Wang et al. arXiv:2006.04768 [cs.LG]
+- Preformer: Predictive Transformer with Multi-Scale Segment-wise Correlations for Long-Term Time Series Forecasting, Du et al. arXiv:2202.11356 [cs.LG]
+- Reformer: The Efficient Transformer, arXiv:2001.04451 [cs.LG]
+- Scaling Laws for Neural Language Models, Kaplan et al. arXiv:2001.08361 [cs.LG]
+- 
+
 
 ## Personal Notes
 
