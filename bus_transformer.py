@@ -48,7 +48,7 @@ class PositionalEncoding(nn.Module):
         else:
             return x + self.emb(indices_to_embed)
 
-class TransformerLayer(nn.Module):
+class AttentionHead(nn.Module):
     def __init__(self, d_model, d_internal):
         super().__init__()
 
@@ -59,20 +59,44 @@ class TransformerLayer(nn.Module):
         self.SoftMax = torch.nn.Softmax(dim=-1)
 
 
-        self.FFN = torch.nn.Sequential(
-            torch.nn.Linear(d_model, d_internal),
-            torch.nn.ReLU(), 
-            torch.nn.Dropout(),
-            torch.nn.Linear(d_internal, d_model)
-        )
+        # self.FFN = torch.nn.Sequential(
+        #     torch.nn.Linear(d_model, d_model),
+        #     torch.nn.ReLU(), 
+        #     torch.nn.Dropout(),
+        #     torch.nn.Linear(d_model, d_model)
+        # )
         self.d_model = d_model
         self.d_internal = d_internal
 
         self.double()
 
+    def expand(self, d_mnew, d_inew):
+        self.FFN = torch.nn.Sequential(
+            torch.nn.Linear(d_mnew, d_mnew),
+            torch.nn.ReLU(), 
+            torch.nn.Dropout(),
+            torch.nn.Linear(d_mnew, d_mnew)
+        )
+        self.W_Q.weight.data = torch.cat([self.W_Q.weight.data, torch.zeros(d_mnew-self.d_model, self.d_internal)], dim=0)
+        self.w_q.weight.data = torch.cat([self.W_Q.weight.data, torch.zeros(d_mnew, d_inew - self.d_internal)], dim=1)
+        for i in range(self.d_internal, d_inew):
+            self.W_Q.weight.data[i][i] = self.W_Q.weight.data[i][i] if self.W_Q.weight.data[i][i] != 0 else 1
+
+        self.W_K.weight.data = torch.cat([self.W_K.weight.data, torch.zeros(d_mnew - self.d_model, self.d_internal)], dim=0)
+        self.W_K.weight.data = torch.cat([self.W_K.weight.data, torch.zeros(d_mnew, d_inew - self.d_internal )], dim=1)
+        for i in range(self.d_internal, d_inew):
+            self.W_K.weight.data[i][i] = self.W_K.weight.data[i][i] if self.W_K.weight.data[i][i] != 0 else 1
+
+        self.W_V.weight.data = torch.cat([self.W_V.weight.data, torch.zeros(d_mnew - self.d_model, self.d_model)], dim=0)
+        self.W_V.weight.data = torch.cat([self.W_V.weight.data, torch.zeros(d_mnew, d_mnew)], dim=1)
+        for i in range(self.d_model, d_mnew):
+            self.W_V.weight.data[i][i] = self.W_V.weight.data[i][i] if self.W_V.weight.data[i][i] != 0 else 1
+
+        self.d_internal = d_inew
+        self.d_model = d_mnew 
+
 
     def forward(self, input_vecs):
-
         Q = self.W_Q(input_vecs)
         K = self.W_K(input_vecs)
         V = self.W_V(input_vecs)
@@ -83,27 +107,31 @@ class TransformerLayer(nn.Module):
 
         Attn = self.SoftMax(Q)
         a = torch.matmul(Attn, V)
-        a += input_vecs
+        # a += input_vecs
 
-        output = self.FFN(a) + a
+        # output = self.FFN(a) + a
 
-        return output, Attn
+        return a#output#, Attn
 
 class Transformer(nn.Module):
-    def __init__(self, d_model, d_internal, num_classes, **args):
+    def __init__(self, d_model, vocab_size, num_heads):
         super().__init__()
         self.d_model = d_model
-        self.d_internal = d_internal
+        self.d_internal = int(d_model/num_heads)
+        self.num_heads = num_heads
+        self.vocab_size = num_heads
 
-        self.tformer = TransformerLayer(d_model, d_internal)
+        self.heads= [AttentionHead(d_model, self.d_internal) for _ in range(num_heads)]
         self.Softmax = torch.nn.LogSoftmax(dim=-1)
         self.FFN = torch.nn.Sequential(
-            torch.nn.Linear(d_model, d_model),
+            torch.nn.Linear(num_heads*d_model, d_model),
             torch.nn.ReLU(),
             torch.nn.Dropout(),
-            torch.nn.Linear(d_model, num_classes)
+            torch.nn.Linear(d_model, vocab_size)
         )
+        self.W_O = torch.nn.Linear(d_model, d_model, False)
         self.b = False
+        self.layernorm = torch.nn.LayerNorm(d_model)
         # self.penc = PositionalEncoding(d_model=d_model, num_positions=num_positions, batched=self.b)
         # self.embed = torch.nn.Embedding(vocab_size, d_model).to(DEVICE)
 
@@ -112,22 +140,41 @@ class Transformer(nn.Module):
 
     def forward(self, x):
         """
-        :param indices: list of input indices
-        :return: A tuple of softmax log probabilities and a list of the attention maps 
+        :param x: input embeddings 
+        :return: output of decoder block, same shape as input
         """
-        # t = self.embed(indices.to(DEVICE))
-        # t = self.penc(t)
-        # t = t.to(torch.float64)
-        t, attn = self.tformer(x)
-        x = self.FFN(t) + x
-        x = self.Softmax(x)
-        return x, [attn]
+        t = torch.cat([head(x) for head in self.heads], dim=-1)
+        t = self.W_O(t)
+        t = self.layernorm(t + x)
+        t = self.FFN(t) 
+        t = self.layernorm(t + x)
+
+        return t#, [attn]
 
 
     def batch(self, b):
         self.b = b
         self.penc.batched = b
 
+
+    def expand(self, d_mnew, d_inew):
+
+        self.FFN = torch.nn.Sequential(
+            torch.nn.Linear(self.d_model, self.d_model),
+            torch.nn.ReLU(),
+            torch.nn.Dropout(),
+            torch.nn.Linear(self.d_model, self.num_classes)
+        )
+        self.W_O.weight.data = torch.cat([self.W_O.weight.data, torch.zeros(d_mnew-self.d_model, self.d_model)], dim=0)
+        self.W_O.weight.data = torch.cat([self.W_O.weight.data, torch.zeros(d_mnew, d_mnew-self.d_model)], dim=1)
+        for i in range(self.d_model+1, d_mnew):
+            self.W_O.weight.data[i][i] = 1
+
+        for head in self.heads:
+            head.expand(d_mnew, d_inew)
+
+        self.d_model = d_mnew
+        self.d_internal = d_inew
 
 
     def extrap(self, model, method='onehot'):
@@ -176,41 +223,6 @@ class Transformer(nn.Module):
 
 
 
-class MultiHeadTransformer(nn.Module):
-    def __init__(self, num_heads, vocab_size, num_positions, d_model, d_internal, num_classes) -> None:
-        """
-        :param num_heads: number of heads 
-        :param vocab_size: size of vocab for embeddings
-        :param num_positions: context length
-        :param d_model: d_model of transformer
-        :param d_internal: d_internal of transformer
-        :param num_classes: number of classes for task (sentiment analysis = 2)
-        """
-        super().__init__()
-        self.num_heads = num_heads
-        self.penc = PositionalEncoding(d_model=d_model, num_positions=num_positions, batched=True)
-        self.embed = torch.nn.Embedding(vocab_size, d_model).to(DEVICE)
-        self.heads = [Transformer(d_model, d_internal, num_classes) for _ in range(num_heads)]
-        self.nn = torch.nn.Sequential(
-            torch.nn.Linear(d_model*num_heads, d_model),
-            torch.nn.Dropout(),
-            torch.nn.ReLU(),
-            torch.nn.Linear(d_model, d_model),
-        )
-        self.Softmax = torch.nn.LogSoftmax(dim=-1)
-
-    def forward(self, x):
-        x = self.embed(x) + self.penc(x)
-        x = torch.cat([self.heads[i](x) for i in range(self.num_heads)], dim=-1)
-        x = self.nn(x)
-        return self.Softmax(x)
-
-    def BUS(self, model):
-        """
-        :param model: smaller model that will be used as a basis to perform BUS (assuming same number of heads)
-        """
-        for i in range(self.num_heads):
-            self.heads[i].extrap(model.heads[i])
 
 
 
