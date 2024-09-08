@@ -2,6 +2,7 @@ import tqdm
 import numpy as np
 import torch
 import torch.nn as nn
+from torch import optim
 from datasets import load_dataset
 from transformers import AutoTokenizer
 
@@ -159,11 +160,12 @@ class Transformer(nn.Module):
 
     def expand(self, d_mnew, d_inew):
 
+        # TODO: / room for future experiments, how can we expand this ffn to not erase it everytime we expand?
         self.FFN = torch.nn.Sequential(
-            torch.nn.Linear(self.d_model, self.d_model),
+            torch.nn.Linear(self.num_heads*d_mnew, d_mnew),
             torch.nn.ReLU(),
             torch.nn.Dropout(),
-            torch.nn.Linear(self.d_model, self.num_classes)
+            torch.nn.Linear(d_mnew, self.vocab_size)
         )
         self.W_O.weight.data = torch.cat([self.W_O.weight.data, torch.zeros(d_mnew-self.d_model, self.d_model)], dim=0)
         self.W_O.weight.data = torch.cat([self.W_O.weight.data, torch.zeros(d_mnew, d_mnew-self.d_model)], dim=1)
@@ -175,53 +177,6 @@ class Transformer(nn.Module):
 
         self.d_model = d_mnew
         self.d_internal = d_inew
-
-
-    def extrap(self, model, method='onehot'):
-
-        if method == "onehot":
-
-            # for one hot we simply add the corresponding one hot vector to the dimensions of the vector
-
-            Q = model.tformer.W_Q.weight.data
-            z = torch.zeros((self.d_internal - model.d_internal, model.tformer.d_model)).to(DEVICE)
-            # z = torch.randn((self.d_internal - model.d_internal, model.tformer.d_model)).to(DEVICE)
-            Q = torch.cat((Q,z), dim=0)
-            z = torch.zeros((self.d_model - model.d_model, self.d_model - model.d_model)).to(DEVICE)
-            # z = torch.randn((self.d_model - model.d_model, self.d_model - model.d_model)).to(DEVICE)
-            Q = torch.cat((Q,z), dim=-1)
-            for i in range(self.d_internal):
-                Q[i][i] = 1 if Q[i][i] == 0 else Q[i][i]
-            
-
-            V = model.tformer.W_V.weight.data
-            z = torch.zeros((self.d_model - model.d_model, model.tformer.d_model)).to(DEVICE)
-            # z = torch.randn((self.d_model - model.d_model, model.tformer.d_model)).to(DEVICE)
-            V = torch.cat((V,z), dim=0)
-            z = torch.zeros((self.d_model, model.tformer.d_model)).to(DEVICE)
-            # z = torch.randn((self.d_model, model.tformer.d_model)).to(DEVICE)
-            V = torch.cat((V,z), dim=-1)
-            for i in range(self.d_model):
-                V[i][i] = 1 if V[i][i] == 0 else V[i][i]
-
-            K = model.tformer.W_K.weight.data
-            z = torch.zeros((self.d_internal - model.d_internal, model.tformer.d_model)).to(DEVICE)
-            # z = torch.randn((self.d_internal - model.d_internal, model.tformer.d_model)).to(DEVICE)
-            K = torch.cat((K,z), dim=0)
-            z = torch.zeros((self.tformer.d_internal, model.tformer.d_model)).to(DEVICE)
-            # z = torch.randn((self.tformer.d_internal, model.tformer.d_model)).to(DEVICE)
-            K = torch.cat((K,z), dim=-1)
-            for i in range(self.d_internal):
-                K[i][i] = 1 if K[i][i] == 0 else K[i][i]
-
-
-            self.tformer.W_Q.weight.data = Q
-            self.tformer.W_K.weight.data = K
-            self.tformer.W_V.weight.data = V
-
-
-
-
 
 
 
