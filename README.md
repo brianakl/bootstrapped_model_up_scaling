@@ -15,6 +15,8 @@ The motivating idea behind this is the Singular Value Decomposition (SVD). SVD e
 
 This idea is inspired by the observation that both smaller and larger models are tackling the same problem, suggesting they share common characteristics. Notably, they exhibit similar approximate eigenvalues. As smaller matrices struggle to capture optimal solutions due to limited dimensionality, their training can drive them closer to the eigenvalues of the larger matrix. This implies that the smaller model learns a lower-dimensional projection of the full solution.
 
+The existing literature on the subject currently revolves around making the attention mechanism faster via the addition of some linear transformations to take advantage of the fact that Self-Attention is low rank [Wang et al.]
+
 The next challenge lies in developing a method to scale up this lower-dimensional solution to a larger matrix, effectively "inflating" the smaller model's capabilities.
 
 ## Methodology
@@ -141,7 +143,8 @@ test
 - Preformer: Predictive Transformer with Multi-Scale Segment-wise Correlations for Long-Term Time Series Forecasting, Du et al. arXiv:2202.11356 [cs.LG]
 - Reformer: The Efficient Transformer, arXiv:2001.04451 [cs.LG]
 - Scaling Laws for Neural Language Models, Kaplan et al. arXiv:2001.08361 [cs.LG]
-- 
+- How to train BERT with an academic budget, Izsak et al. https://aclanthology.org/2021.emnlp-main.831.pdf
+- BERT: ..., Devlin et al. arXiv:1810.04805 [cs.CL]
 
 
 ## Personal Notes

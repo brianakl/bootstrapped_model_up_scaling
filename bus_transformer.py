@@ -14,8 +14,26 @@ class Decoder(nn.Module):
         self.num_blocks = num_blocks
         self.d_model = d_model
         self.vocab_size = vocab_size
-        self.SoftMax = torch.nn.Softmax(dim=-1)
+        self.SoftMax = torch.nn.LogSoftmax(dim=-1)
         self.heads = [Transformer(d_model, d_internal, vocab_size) for _ in range(num_heads)]
+
+        self.FFN = torch.nn.Sequential(
+            torch.nn.Linear(d_model, vocab_size//2),
+            torch.nn.Dropout(),
+            torch.nn.ReLU(),
+            torch.nn.Linear(vocab_size//2, vocab_size),
+            torch.nn.Dropout(),
+            torch.nn.ReLU(),
+        )
+
+    def forward(self, x):
+        t = x
+        for head in self.heads:
+            t = head(t) + x
+
+        ret = self.FFN(t)
+
+        return self.SoftMax(ret)
 
 
 class PositionalEncoding(nn.Module):
@@ -108,11 +126,8 @@ class AttentionHead(nn.Module):
 
         Attn = self.SoftMax(Q)
         a = torch.matmul(Attn, V)
-        # a += input_vecs
 
-        # output = self.FFN(a) + a
-
-        return a#output#, Attn
+        return a
 
 class Transformer(nn.Module):
     def __init__(self, d_model, vocab_size, num_heads):
