@@ -15,10 +15,10 @@ class Decoder(nn.Module):
         self.d_model = d_model
         self.vocab_size = vocab_size
         self.SoftMax = torch.nn.LogSoftmax(dim=-1)
-        self.heads = [Transformer(d_model, d_internal, vocab_size) for _ in range(num_heads)]
+        self.blocks = [Transformer(d_model, d_internal, vocab_size) for _ in range(num_heads)]
 
+        self.connection = torch.nn.Linear(d_model, vocab_size//2),
         self.FFN = torch.nn.Sequential(
-            torch.nn.Linear(d_model, vocab_size//2),
             torch.nn.Dropout(),
             torch.nn.ReLU(),
             torch.nn.Linear(vocab_size//2, vocab_size),
@@ -31,9 +31,18 @@ class Decoder(nn.Module):
         for head in self.heads:
             t = head(t) + x
 
+        t = self.connection(t)
         ret = self.FFN(t)
 
         return self.SoftMax(ret)
+
+    def expand(self, d_mnew, d_inew):
+        self.connection = torch.nn.Linear(d_mnew, self.vocab_size//2)
+        for block in self.blocks:
+            block.expand(d_mnew, d_inew)
+
+        self.d_model = d_mnew
+        self.d_internal = d_inew
 
 
 class PositionalEncoding(nn.Module):
@@ -268,7 +277,7 @@ def model_run(model_args, epochs, num_trials, transfer_ratio, do_logging):
         for t in tqdm.tqdm(range(num_trials)):
             # small model for BUS
             # cannot pass str to model, embeddings expect indices not str's
-            model = MultiHeadTransformer(**prev_args).to(DEVICE)
+            model = Decoder(**prev_args).to(DEVICE)
             print(model(train['sentence'][0]))
             model, l1, r1 = training_loop(model, train, validation, num_epochs*transfer_ratio)
             loss1.append(l1)
