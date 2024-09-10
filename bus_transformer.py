@@ -5,39 +5,55 @@ import torch.nn as nn
 from torch import optim
 from datasets import load_dataset
 from transformers import AutoTokenizer
+from transformers.models.deprecated.transfo_xl.modeling_transfo_xl import PositionalEmbedding
 
 DEVICE = 'cuda' if torch.cuda.is_available() else 'cpu'
 
 class Decoder(nn.Module):
-    def __init__(self, num_blocks, d_model, d_internal, vocab_size, num_heads):
+    def __init__(self, num_blocks, d_model, d_internal, d_hidden, vocab_size, num_heads, final_dmodel):
         super().__init__()
         self.num_blocks = num_blocks
         self.d_model = d_model
         self.vocab_size = vocab_size
         self.SoftMax = torch.nn.LogSoftmax(dim=-1)
-        self.blocks = [Transformer(d_model, d_internal, vocab_size) for _ in range(num_heads)]
+        self.blocks = [Transformer(d_model, d_internal, num_heads) for _ in range(num_blocks)]
+        self.d_hidden = d_hidden
 
-        self.connection = torch.nn.Linear(d_model, vocab_size//2),
+        self.connection = torch.nn.Linear(d_model, d_hidden),
         self.FFN = torch.nn.Sequential(
-            torch.nn.Dropout(),
+            torch.nn.Dropout(0.1),
+            torch.nn.ReLU(),
+            torch.nn.Linear(d_hidden, vocab_size//2), 
+            torch.nn.Dropout(0.1),
             torch.nn.ReLU(),
             torch.nn.Linear(vocab_size//2, vocab_size),
-            torch.nn.Dropout(),
-            torch.nn.ReLU(),
+            torch.nn.LogSoftmax(),
         )
+        
+        self.dropout = torch.nn.Dropout(0.1)
+        self.final_dmodel = final_dmodel
+        self.embeddings = torch.nn.Embedding(vocab_size, final_dmodel)
+        self.pos_embedding = PositionalEmbedding(d_model)
+        self.layernorm = torch.nn.LayerNorm(d_model)
 
     def forward(self, x):
+        x = self.embeddings(x) + self.pos_embedding(x)
         t = x
+        t = self.dropout(t)
         for head in self.heads:
             t = head(t) + x
+
+        t = self.layernorm(t)
 
         t = self.connection(t)
         ret = self.FFN(t)
 
-        return self.SoftMax(ret)
+        return ret
+
 
     def expand(self, d_mnew, d_inew):
-        self.connection = torch.nn.Linear(d_mnew, self.vocab_size//2)
+        self.connection = torch.nn.Linear(d_mnew, self.d_hidden)
+        self.layernorm = torch.nn.LayerNorm(d_mnew)
         for block in self.blocks:
             block.expand(d_mnew, d_inew)
 
@@ -102,7 +118,7 @@ class AttentionHead(nn.Module):
         self.FFN = torch.nn.Sequential(
             torch.nn.Linear(d_mnew, d_mnew),
             torch.nn.ReLU(), 
-            torch.nn.Dropout(),
+            torch.nn.Dropout(0.1),
             torch.nn.Linear(d_mnew, d_mnew)
         )
         self.W_Q.weight.data = torch.cat([self.W_Q.weight.data, torch.zeros(d_mnew-self.d_model, self.d_internal)], dim=0)
@@ -144,20 +160,22 @@ class Transformer(nn.Module):
         self.d_model = d_model
         self.d_internal = int(d_model/num_heads)
         self.num_heads = num_heads
-        self.vocab_size = num_heads
+        self.vocab_size = vocab_size 
 
         self.heads= [AttentionHead(d_model, self.d_internal) for _ in range(num_heads)]
         self.Softmax = torch.nn.LogSoftmax(dim=-1)
         self.FFN = torch.nn.Sequential(
             torch.nn.Linear(num_heads*d_model, d_model),
             torch.nn.ReLU(),
-            torch.nn.Dropout(),
-            torch.nn.Linear(d_model, vocab_size)
+            torch.nn.Dropout(0.1),
+            torch.nn.Linear(d_model, d_model),
+            torch.nn.ReLU(),
+            torch.nn.Dropout(0.1),
+            torch.nn.Linear(d_model, d_model)
         )
         self.W_O = torch.nn.Linear(d_model, d_model, False)
         self.b = False
         self.layernorm = torch.nn.LayerNorm(d_model)
-        # self.penc = PositionalEncoding(d_model=d_model, num_positions=num_positions, batched=self.b)
         # self.embed = torch.nn.Embedding(vocab_size, d_model).to(DEVICE)
 
         self.double()
@@ -188,7 +206,7 @@ class Transformer(nn.Module):
         self.FFN = torch.nn.Sequential(
             torch.nn.Linear(self.num_heads*d_mnew, d_mnew),
             torch.nn.ReLU(),
-            torch.nn.Dropout(),
+            torch.nn.Dropout(0.1),
             torch.nn.Linear(d_mnew, self.vocab_size)
         )
         self.W_O.weight.data = torch.cat([self.W_O.weight.data, torch.zeros(d_mnew-self.d_model, self.d_model)], dim=0)
@@ -284,7 +302,7 @@ def model_run(model_args, epochs, num_trials, transfer_ratio, do_logging):
 
 
             # larger model for BUS
-            m = MultiHeadTransformer(**args).to(DEVICE)
+            m = Decoder(**args).to(DEVICE)
             m.BUS(model)
             m1, l2, r2 = training_loop(m, train, validation, num_epochs)
             loss2.append(l1+l2[:num_epochs*(1-transfer_ratio)])
