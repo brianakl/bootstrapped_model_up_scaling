@@ -7,7 +7,7 @@
 The objective of this research is to explore whether knowledge learned by a smaller Transformer model can be transferred to a larger one. This could significantly improve the efficiency of training Large Language Models (LLMs) by reducing the computational cost associated with pretraining, which often involves extensive matrix multiplications. By investigating the possibility of pretraining a smaller model and then scaling it up to a larger architecture, bootstrapped  up scaling (BUS), we aim to identify potential time- and cost-saving strategies for LLM training.
 
 ## Introduction
-The pretraining of LLMs has become increasingly computationally expensive, requiring vast amounts of memory and processing power. A key factor contributing to this challenge is the sheer size of the models themselves, which necessitate extensive matrix multiplications during training. This paper explores a potential solution to mitigate these costs by investigating whether knowledge learned by smaller Transformer models can be transferred to larger ones, enabling more efficient training of LLMs.
+The pretraining of LLMs has become increasingly computationally expensive, requiring vast amounts of memory and processing power. A key factor contributing to this challenge is the sheer size of the models themselves, which necessitate extensive matrix multiplications during training. Other transformer architectures that aim to improve model performance tend to sacrifice performance for speed [linformer, performer, reformer]. The current literature suggests that larger models do perform better due to the ability to generate good subnetworks (lottery ticket hypothesis) []. This paper explores a potential solution to mitigate these costs by investigating whether knowledge learned by smaller Transformer models can be transferred to larger ones, enabling more efficient training of LLMs.
 
 ## Background
 
@@ -101,11 +101,11 @@ test
 
 | Model size (d_model) | Dev set accuracy | Dev accuracy (transfer learning) | Transfer Improvement |
 |:--------------------:|:----------------:|:--------------------------------:|:--------------------:|
-| 64 | 81.42% | 86.81% | +5.39% |
-| 128 | 87.99% | 93.60% | +5.61% |
-| 256 | 91.23% | 96.82% | +5.59% |
-| 512 | 92.31% | 97.72% | +5.41% |
-| 1024| 93.70% | 99.10% | +5.40% |
+| 64 | 81.4% | 86.8% | +5.9% |
+| 128 | 88.0% | 93.6% | +5.6% |
+| 256 | 91.2% | 96.8% | +5.6% |
+| 512 | 92.3% | 97.7% | +5.4% |
+| 1024| 93.7% | 99.1% | +5.4% |
 
 ![Accuracy across epochs (model size 1024)](images/acc_model_1024.png)
 ![Loss across epochs (model size 1024)](images/loss_model_1024.png)
@@ -145,6 +145,8 @@ test
 - Scaling Laws for Neural Language Models, Kaplan et al. arXiv:2001.08361 [cs.LG]
 - How to train BERT with an academic budget, Izsak et al. https://aclanthology.org/2021.emnlp-main.831.pdf
 - BERT: ..., Devlin et al. arXiv:1810.04805 [cs.CL]
+- The Lottery Ticket hypothesis: finding sparse, trainable neural networks, Frankle et al. arXiv:1803.03635 [cs.LG]
+- Rethinking attention with performers, Choromanski et al.  	arXiv:2009.14794 [cs.LG]
 
 
 ## Personal Notes
