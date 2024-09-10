@@ -7,15 +7,15 @@
 The objective of this research is to explore whether knowledge learned by a smaller Transformer model can be transferred to a larger one. This could significantly improve the efficiency of training Large Language Models (LLMs) by reducing the computational cost associated with pretraining, which often involves extensive matrix multiplications. By investigating the possibility of pretraining a smaller model and then scaling it up to a larger architecture, bootstrapped  up scaling (BUS), we aim to identify potential time- and cost-saving strategies for LLM training.
 
 ## Introduction
-The pretraining of LLMs has become increasingly computationally expensive, requiring vast amounts of memory and processing power. A key factor contributing to this challenge is the sheer size of the models themselves, which necessitate extensive matrix multiplications during training. Other transformer architectures that aim to improve model performance tend to sacrifice performance for speed [linformer, performer, reformer]. The current literature suggests that larger models do perform better due to the ability to generate good subnetworks (lottery ticket hypothesis) []. This paper explores a potential solution to mitigate these costs by investigating whether knowledge learned by smaller Transformer models can be transferred to larger ones, enabling more efficient training of LLMs.
+The pretraining of LLMs has become increasingly computationally expensive, requiring vast amounts of memory and processing power. A key factor contributing to this challenge is the sheer size of the models themselves, which necessitate extensive matrix multiplications during training. Other transformer architectures that aim to improve model performance tend to sacrifice performance for speed [linformer, performer, reformer]. The current literature suggests that larger models do perform better due to the ability to generate good subnetworks (lottery ticket hypothesis) []. This paper explores a potential solution to mitigate these costs by investigating whether knowledge learned by smaller Transformer models can be transferred to larger ones, enabling more efficient training of LLMs without the cost of performance from training a smaller model.
 
 ## Background
 
-The motivating idea behind this is the Singular Value Decomposition (SVD). SVD enables the condensation of large matrices into smaller ones through linear dimensionality reduction. This raises an intriguing question: if we can shrink a large matrix to a smaller one, can we also scale up from small to large? While perfect reconstruction is unlikely, might it be possible to transfer some information from the smaller matrix to its larger counterpart?
+The motivating idea behind this is the Singular Value Decomposition (SVD)[]. SVD enables the condensation of large matrices into smaller ones through linear dimensionality reduction. This raises an intriguing question: if we can shrink a large matrix to a smaller one, can we also scale up from small to large? While perfect reconstruction is unlikely, might it be possible to transfer some information from the smaller matrix to its larger counterpart?
 
-This idea is inspired by the observation that both smaller and larger models are tackling the same problem, suggesting they share common characteristics. Notably, they exhibit similar approximate eigenvalues. As smaller matrices struggle to capture optimal solutions due to limited dimensionality, their training can drive them closer to the eigenvalues of the larger matrix. This implies that the smaller model learns a lower-dimensional projection of the full solution.
+This idea is inspired by the observation that both smaller and larger models are tackling the same problem, suggesting they share common characteristics. Notably, they exhibit similar approximate eigenvalues [insert spectral analysis]. As smaller matrices struggle to capture optimal solutions due to limited dimensionality, their training can drive them closer to the eigenvalues of the larger matrix. Which then 'guides' the larger model in the direction of the optimal solution. This implies that the smaller model learns a lower-dimensional projection of the full solution.
 
-The existing literature on the subject currently revolves around making the attention mechanism faster via the addition of some linear transformations to take advantage of the fact that Self-Attention is low rank [Wang et al.]
+The existing literature on the subject currently revolves around making the attention mechanism faster via the addition of some linear transformations to take advantage of the fact that Self-Attention is low rank [Wang et al.]. This however, is a change to the original transformer architecture, reducing the dimensionality, and ergo reducing performance.
 
 The next challenge lies in developing a method to scale up this lower-dimensional solution to a larger matrix, effectively "inflating" the smaller model's capabilities.
 
@@ -49,26 +49,7 @@ In each example, the output should indicate the frequency count of each characte
 
 Each string in the training set will consist of 20 characters. The vocabulary is limited to English letters and spaces, with numbers represented as individual digits (e.g., "10" becomes "one zero").
 
-<!-- The task is given a string of characters, the model must learn to predict, for each position in the string, how many times the character at that position occurred before, maxing out at 2. This 3-class classification problem is an easy task to set up testing data for to compare results. This is becuase the task can be learned with only 1 single-headed transformer layer without using multiple layers or large neural networks on top of the model. The performance of the transformer is directly preportional to the performance of the model.  -->
-<!-- This task is also specifically chosen since a transformer would particularly benefit from "looking back" in the input with its' self-attention.  -->
-<!-- Below is a sample: -->
-<!---->
-<!-- The majority cannot reason; it has no judgment.<br> -->
-<!-- 00000000001010101122112022021222212222100012220 -->
-<!---->
-<!-- For each character, the output should be the number of times that character has occurred before. -->
-<!---->
-<!-- men love the downfall and disgrace of the righteous<br> -->
-<!-- 000000011002201010001212121000020222121122111222201 -->
-<!---->
-<!-- For this example we extended the length of the string to demonstrate the rule. In the training set each string will be 20 characters long as demonstrated below. the vocab is also limited to the english letters and space. Numbers are spelled out as individual digits (10 becomes one zero). -->
-<!---->
-<!-- the majority cannot r<br> -->
-<!-- 000000000010101011221 -->
-<!---->
-<!-- men love the downfall<br> -->
-<!-- 000000011002201010001 -->
-<!---->
+
 ### The dataset
 The dataset was taken from text8.
 
