@@ -10,7 +10,7 @@ from transformers import AutoTokenizer
 DEVICE = 'cuda' if torch.cuda.is_available() else 'cpu'
 
 class PositionalEncoding(nn.Module):
-    def __init__(self, d_model: int, num_positions: int=20, batched=False):
+    def __init__(self, d_model: int, num_positions: int=128, batched=True):
         """
         :param d_model: dimensionality of the embedding layer to your model; since the position encodings are being
         added to character encodings, these need to match (and will match the dimension of the subsequent Transformer
@@ -30,7 +30,7 @@ class PositionalEncoding(nn.Module):
         :return: a tensor of the same size with positional embeddings added in
         """
         # Second-to-last dimension will always be sequence length
-        input_size = x.shape[-2]
+        input_size = 128 
         indices_to_embed = torch.tensor(np.asarray(range(0, input_size))).type(torch.LongTensor)
         if self.batched:
             # Use unsqueeze to form a [1, seq len, embedding dim] tensor -- broadcasting will ensure that this
@@ -51,7 +51,7 @@ class Decoder(nn.Module):
         self.blocks = [Transformer(d_model, d_internal, num_heads) for _ in range(num_blocks)]
         self.d_hidden = d_hidden
 
-        self.connection = torch.nn.Linear(d_model, d_hidden),
+        self.connection = torch.nn.Linear(d_model, d_hidden)
         self.FFN = torch.nn.Sequential(
             torch.nn.Dropout(0.1),
             torch.nn.ReLU(),
@@ -59,20 +59,21 @@ class Decoder(nn.Module):
             torch.nn.Dropout(0.1),
             torch.nn.ReLU(),
             torch.nn.Linear(vocab_size//2, vocab_size),
-            torch.nn.LogSoftmax(),
+            torch.nn.LogSoftmax(dim=-1),
         )
         
         self.dropout = torch.nn.Dropout(0.1)
         self.final_dmodel = final_dmodel
-        self.embeddings = torch.nn.Embedding(vocab_size, final_dmodel)
+        self.embeddings = torch.nn.Embedding(vocab_size, d_model)
         self.pos_embedding = PositionalEncoding(d_model)
         self.layernorm = torch.nn.LayerNorm(d_model)
+        self.double()
 
     def forward(self, x):
-        x = self.embeddings(x) + self.pos_embedding(x)
-        t = x
+        # x = self.embeddings(x) 
+        t = self.pos_embedding(x) 
         t = self.dropout(t)
-        for head in self.heads:
+        for head in self.blocks:
             t = head(t) + x
 
         t = self.layernorm(t)
@@ -159,14 +160,14 @@ class Transformer(nn.Module):
     def __init__(self, d_model, vocab_size, num_heads):
         super().__init__()
         self.d_model = d_model
-        self.d_internal = int(d_model/num_heads)
+        self.d_internal = d_model//num_heads
         self.num_heads = num_heads
         self.vocab_size = vocab_size 
 
-        self.heads= [AttentionHead(d_model, self.d_internal) for _ in range(num_heads)]
+        self.heads= [AttentionHead(self.d_model, self.d_model) for _ in range(num_heads)]
         self.Softmax = torch.nn.LogSoftmax(dim=-1)
         self.FFN = torch.nn.Sequential(
-            torch.nn.Linear(num_heads*d_model, d_model),
+            torch.nn.Linear(d_model, d_model),
             torch.nn.ReLU(),
             torch.nn.Dropout(0.1),
             torch.nn.Linear(d_model, d_model),
@@ -174,7 +175,7 @@ class Transformer(nn.Module):
             torch.nn.Dropout(0.1),
             torch.nn.Linear(d_model, d_model)
         )
-        self.W_O = torch.nn.Linear(d_model, d_model, False)
+        self.W_O = torch.nn.Linear(d_model*num_heads, d_model, False)
         self.b = False
         self.layernorm = torch.nn.LayerNorm(d_model)
         # self.embed = torch.nn.Embedding(vocab_size, d_model).to(DEVICE)
@@ -187,8 +188,8 @@ class Transformer(nn.Module):
         :param x: input embeddings 
         :return: output of decoder block, same shape as input
         """
-        t = torch.cat([head(x) for head in self.heads], dim=-1)
-        t = self.W_O(t)
+        t = torch.cat([head(x) for head in self.heads], dim=1)
+        t = self.W_O(torch.transpose(t, dim1=-1, dim0=-2))
         t = self.layernorm(t + x)
         t = self.FFN(t) 
         t = self.layernorm(t + x)
