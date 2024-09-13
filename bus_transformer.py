@@ -55,10 +55,10 @@ class Decoder(nn.Module):
         self.FFN = torch.nn.Sequential(
             torch.nn.Dropout(0.1),
             torch.nn.ReLU(),
-            torch.nn.Linear(d_hidden, vocab_size//2), 
+            torch.nn.Linear(d_hidden, d_hidden*4), 
             torch.nn.Dropout(0.1),
             torch.nn.ReLU(),
-            torch.nn.Linear(vocab_size//2, vocab_size),
+            torch.nn.Linear(d_hidden*4, vocab_size),
             torch.nn.LogSoftmax(dim=-1),
         )
         
