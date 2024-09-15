@@ -100,19 +100,15 @@ class AttentionHead(nn.Module):
 
         self.W_Q = torch.nn.Linear(d_model, d_internal, False)
         self.W_K = torch.nn.Linear(d_model, d_internal, False)
-        self.W_V = torch.nn.Linear(d_model, d_model, False)
+        self.W_V = torch.nn.Linear(d_model, d_internal, False)
 
         self.SoftMax = torch.nn.Softmax(dim=-1)
 
 
-        # self.FFN = torch.nn.Sequential(
-        #     torch.nn.Linear(d_model, d_model),
-        #     torch.nn.ReLU(), 
-        #     torch.nn.Dropout(),
-        #     torch.nn.Linear(d_model, d_model)
-        # )
         self.d_model = d_model
         self.d_internal = d_internal
+        self.norm = 1/torch.sqrt(torch.tensor(d_model))
+        self.tril = torch.tril(torch.ones(d_model))
 
         self.double()
 
@@ -124,7 +120,7 @@ class AttentionHead(nn.Module):
             torch.nn.Linear(d_mnew, d_mnew)
         )
         self.W_Q.weight.data = torch.cat([self.W_Q.weight.data, torch.zeros(d_mnew-self.d_model, self.d_internal)], dim=0)
-        self.w_q.weight.data = torch.cat([self.W_Q.weight.data, torch.zeros(d_mnew, d_inew - self.d_internal)], dim=1)
+        self.w_Q.weight.data = torch.cat([self.W_Q.weight.data, torch.zeros(d_mnew, d_inew - self.d_internal)], dim=1)
         for i in range(self.d_internal, d_inew):
             self.W_Q.weight.data[i][i] = self.W_Q.weight.data[i][i] if self.W_Q.weight.data[i][i] != 0 else 1
 
@@ -147,14 +143,14 @@ class AttentionHead(nn.Module):
         K = self.W_K(input_vecs)
         V = self.W_V(input_vecs)
 
-        Q = torch.matmul(Q, torch.transpose(K, -2, -1))
-        Q = Q / torch.sqrt(torch.tensor(self.d_model))
-        
+        weights = Q @ K.T(-2, -1)
+        weights *= self.norm
+        weights = weights.masked_fill(self.tril == 0, float('-inf'))
+        Attn = self.SoftMax(weights)
 
-        Attn = self.SoftMax(Q)
-        a = torch.matmul(Attn, V)
+        out = Attn @ V
 
-        return a
+        return out
 
 class Transformer(nn.Module):
     def __init__(self, d_model, vocab_size, num_heads):
