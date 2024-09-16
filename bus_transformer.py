@@ -5,6 +5,7 @@ import torch.nn as nn
 from torch import optim
 from datasets import load_dataset
 from transformers import AutoTokenizer
+from transformers.models import dinat
 # from transformers.models.deprecated.transfo_xl.modeling_transfo_xl import PositionalEmbedding
 
 DEVICE = 'cuda' if torch.cuda.is_available() else 'cpu'
@@ -48,7 +49,8 @@ class Decoder(nn.Module):
         self.d_model = d_model
         self.vocab_size = vocab_size
         self.SoftMax = torch.nn.LogSoftmax(dim=-1)
-        self.blocks = [Transformer(d_model, d_internal, num_heads) for _ in range(num_blocks)]
+        # self.blocks = [Transformer(d_model, d_internal, num_heads) for _ in range(num_blocks)]
+        self.blocks = torch.nn.ModuleList([Transformer(d_model, vocab_size, num_heads) for _ in range(num_blocks)])
         self.d_hidden = d_hidden
 
         self.connection = torch.nn.Linear(d_model, d_hidden)
@@ -71,7 +73,7 @@ class Decoder(nn.Module):
 
     def forward(self, x):
         # x = self.embeddings(x) 
-        t = self.pos_embedding(x) 
+        t = self.pos_embedding(x) + self.embeddings(x) 
         t = self.dropout(t)
         for head in self.blocks:
             t = head(t) + x
@@ -108,7 +110,7 @@ class AttentionHead(nn.Module):
         self.d_model = d_model
         self.d_internal = d_internal
         self.norm = 1/torch.sqrt(torch.tensor(d_model))
-        self.tril = torch.tril(torch.ones(d_model))
+        self.tril = torch.tril(torch.ones(d_model, d_internal))
 
         self.double()
 
@@ -143,8 +145,7 @@ class AttentionHead(nn.Module):
         K = self.W_K(input_vecs)
         V = self.W_V(input_vecs)
 
-        weights = Q @ K.T(-2, -1)
-        weights *= self.norm
+        weights = Q @ K.T(-2, -1) * self.norm
         weights = weights.masked_fill(self.tril == 0, float('-inf'))
         Attn = self.SoftMax(weights)
 
@@ -160,7 +161,7 @@ class Transformer(nn.Module):
         self.num_heads = num_heads
         self.vocab_size = vocab_size 
 
-        self.heads= [AttentionHead(self.d_model, self.d_model) for _ in range(num_heads)]
+        self.heads = nn.ModuleList([AttentionHead(d_model, self.d_internal) for _ in range(num_heads)])
         self.Softmax = torch.nn.LogSoftmax(dim=-1)
         self.FFN = torch.nn.Sequential(
             torch.nn.Linear(d_model, d_model),
@@ -172,7 +173,6 @@ class Transformer(nn.Module):
             torch.nn.Linear(d_model, d_model)
         )
         self.W_O = torch.nn.Linear(d_model*num_heads, d_model, False)
-        self.b = False
         self.layernorm = torch.nn.LayerNorm(d_model)
         # self.embed = torch.nn.Embedding(vocab_size, d_model).to(DEVICE)
 
@@ -184,7 +184,7 @@ class Transformer(nn.Module):
         :param x: input embeddings 
         :return: output of decoder block, same shape as input
         """
-        t = torch.cat([head(x) for head in self.heads], dim=1)
+        t = torch.cat([head(x) for head in self.heads], dim=-1)
         t = self.W_O(torch.transpose(t, dim1=-1, dim0=-2))
         t = self.layernorm(t + x)
         t = self.FFN(t) 
@@ -192,10 +192,6 @@ class Transformer(nn.Module):
 
         return t#, [attn]
 
-
-    def batch(self, b):
-        self.b = b
-        self.penc.batched = b
 
 
     def expand(self, d_mnew, d_inew):
