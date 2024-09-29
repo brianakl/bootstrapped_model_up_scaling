@@ -129,6 +129,7 @@ test
 - The Lottery Ticket hypothesis: finding sparse, trainable neural networks, Frankle et al. arXiv:1803.03635 [cs.LG]
 - Rethinking attention with performers, Choromanski et al.  	arXiv:2009.14794 [cs.LG]
 - Improving Language Understanding by generative pre-training, Radford et al. https://cdn.openai.com/research-covers/language-unsupervised/language_understanding_paper.pdf
+- RoFormer: Enhanced Transformer with Rotary Position Embedding, Su et al. arXiv:2104.09864 [cs.CL]
 
 
 
