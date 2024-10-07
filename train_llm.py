@@ -6,10 +6,26 @@ import tqdm
 from datasets import load_dataset
 from transformers import AutoTokenizer
 import argparse
-import bus_decoder_model
+from bus_decoder_model import Decoder, Transformer, AttentionHead
 from torch.utils.tensorboard.writer import SummaryWriter
 
 DEVICE = 'cuda' if torch.cuda.is_available() else 'cpu'
+
+# Params
+d_model = 368 
+target_size = 512
+num_layers = 4
+num_heads = 8
+d_hidden = 4*d_model
+seq_len = 128
+vocab_size = 67
+max_steps = 5000
+transfer_step = 800
+dataset = 'shakespeare'
+lr = 1e-3
+min_lr = 1e-4
+batch_size = 128
+
 
 def test_model(model, data):
     pass
@@ -65,8 +81,27 @@ if __name__ == '__main__':
     
     # Add an optional boolean flag called "verbose"
     parser.add_argument("-v", "--verbose", action="store_true", help="Print extra information about the processing")
+    parser.add_argument("--d_model", action="store_true", default=d_model, help="model dimensions")
+    parser.add_argument("--target_size", action="store_true", default=target_size, help="model dimensions")
+    parser.add_argument("--dataset", action="store_true", default=dataset, help="Dataset")
+    parser.add_argument("--num_layers", action="store_true", default=num_layers, help="Dataset")
+    parser.add_argument("--d_hidden", action="store_true", default=d_hidden, help="Dataset")
+    parser.add_argument("--vocab_size", action="store_true", default=vocab_size, help="Dataset")
+    parser.add_argument("--num_heads", action="store_true", default=num_heads, help="Dataset")
+    parser.add_argument("--seq_len", action="store_true", default=seq_len, help="Dataset")
+    parser.add_argument("--lr", action="store_true", default=lr, help="Dataset")
+    parser.add_argument("--min_lr", action="store_true", default=min_lr, help="Dataset")
+    parser.add_argument("--steps", action="store_true", default=max_steps, help="Dataset")
+    parser.add_argument("--transfer", action="store_true", default=transfer_step, help="Dataset")
+    parser.add_argument("--batch_size", action="store_true", default=batch_size, help="Dataset")
+
+    print("Device: ", DEVICE)
 
     data = None
     if dataset == 'shakespeare':
         data = load_dataset('tiny_shakespeare')
+
+    model = Decoder(d_model=d_model, num_layers=num_layers, num_heads=num_heads, d_hidden=d_hidden, vocab_size=vocab_size, seq_len=seq_len)
+
+    train_model(model=model, data=data, transfer_step=transfer_step)
 
