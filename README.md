@@ -22,6 +22,8 @@ The next challenge lies in developing a method to scale up this lower-dimensiona
 ## Methodology
 As a proof of concept, a relatively simple task was chosen such that it can be trained locally and quickly. The model used was also small by design to provide give an easy way to compare learning rates.
 
+Additionally, the arcitecture was tested on a character level decoder LLM, before expanding to a full-sized LLM 
+
 ### Test
 To test the BUS capabilty of transformers a simple task was used to test transformer learning. This task is one that a transformer would excel at in comparison to other machine learning models/architectures.
 
