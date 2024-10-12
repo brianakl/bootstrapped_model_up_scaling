@@ -1,4 +1,4 @@
-******************** WORK IN PROGRESS (Draft 0) *********************
+******************** WORK IN PROGRESS (Draft 0.1.0) *********************
 
 
 # Bootstrapped Up Scaling (BUS) / The Student Becomes the Teacher
