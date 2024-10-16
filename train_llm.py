@@ -26,9 +26,12 @@ lr = 1e-3
 min_lr = 1e-4
 batch_size = 128
 
+# TODO: create way to make a torch dataset for wikitext
+
 def get_data(dataset='salesforce/wikitext'):
     data = load_dataset(dataset)
     # TODO: process and clean data
+    
 
 def test_model(model, data):
     pass
@@ -66,12 +69,6 @@ def train_model(model, data, transfer_step=900, target_size=1024, lr=1e-3, min_l
     writer.flush()
     writer.close()
     test_model(model, data['test'])
-
-
-
-
-
-
 
 
 
