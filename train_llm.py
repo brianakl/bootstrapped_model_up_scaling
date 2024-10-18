@@ -8,6 +8,7 @@ from transformers import AutoTokenizer
 import argparse
 from bus_decoder_model import Decoder, Transformer, AttentionHead
 from torch.utils.tensorboard.writer import SummaryWriter
+from collections import defaultdict, Counter
 
 DEVICE = 'cuda' if torch.cuda.is_available() else 'cpu'
 
@@ -25,6 +26,50 @@ dataset = 'salesforce/wikitext'
 lr = 1e-3
 min_lr = 1e-4
 batch_size = 128
+
+
+# Function to perform Byte Pair Encoding
+def byte_pair_encoding(text, num_merges):
+    # Split the text into a list of characters (initial symbols)
+    symbols = list(text)
+    
+    # Initialize the frequency dictionary of symbol pairs
+    def get_pair_frequencies(symbols):
+        pairs = defaultdict(int)
+        for i in range(len(symbols) - 1):
+            pair = (symbols[i], symbols[i+1])
+            pairs[pair] += 1
+        return pairs
+    
+    # Merge the most frequent pair in the symbols list
+    def merge_pair(symbols, pair):
+        new_symbols = []
+        i = 0
+        while i < len(symbols):
+            if i < len(symbols) - 1 and (symbols[i], symbols[i+1]) == pair:
+                # Replace the pair with a merged symbol
+                new_symbols.append(symbols[i] + symbols[i+1])
+                i += 2  # Skip the next symbol as it's part of the merged pair
+            else:
+                new_symbols.append(symbols[i])
+                i += 1
+        return new_symbols
+    
+    # Perform the merge operations
+    for _ in range(num_merges):
+        # Get the frequencies of each pair
+        pair_frequencies = get_pair_frequencies(symbols)
+        if not pair_frequencies:
+            break
+        
+        # Find the most frequent pair
+        most_frequent_pair = max(pair_frequencies, key=pair_frequencies.get)
+        
+        # Merge the most frequent pair in the symbols list
+        symbols = merge_pair(symbols, most_frequent_pair)
+    
+    return symbols
+
 
 # TODO: create way to make a torch dataset for wikitext
 
