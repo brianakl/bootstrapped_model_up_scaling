@@ -132,7 +132,10 @@ test
 - Rethinking attention with performers, Choromanski et al.  	arXiv:2009.14794 [cs.LG]
 - Improving Language Understanding by generative pre-training, Radford et al. https://cdn.openai.com/research-covers/language-unsupervised/language_understanding_paper.pdf
 - RoFormer: Enhanced Transformer with Rotary Position Embedding, Su et al. arXiv:2104.09864 [cs.CL]
-
+- Are Sixteen Heads Really Better than One? https://proceedings.neurips.cc/paper_files/paper/2019/file/2c601ad9d2ff9bc8b282670cdd54f69f-Paper.pdf
+- Language Models are Few-Shot Learners. arXiv:2005.14165 [cs.CL]
+- The Llama 3 Herd of Models. arXiv:2407.21783 [cs.AI]
+- Training Compute-Optimal Large Language Models.  	arXiv:2203.15556 [cs.CL]
 
 
 ## Personal Notes
