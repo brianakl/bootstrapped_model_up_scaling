@@ -58,7 +58,15 @@ The dataset was taken from text8.
 
 
 ### Model Architecture
-test
+
+| d_model | batch size | Max Learning Rate | Number of Heads|
+|:--------------------:|:----------------:|:--------------------------------:|:--------------------:|
+| 64 | 81.4% | 86.8% | +5.9% |
+| 128 | 88.0% | 93.6% | +5.6% |
+| 256 | 91.2% | 96.8% | +5.6% |
+| 512 | 92.3% | 97.7% | +5.4% |
+| 1024| 93.7% | 99.1% | +5.4% |
+
 
 
 ### Steps 
@@ -82,6 +90,8 @@ test
 
 ## Results
 
+#### Letter Counting Test
+
 | Model size (d_model) | Dev set accuracy | Dev accuracy (transfer learning) | Transfer Improvement |
 |:--------------------:|:----------------:|:--------------------------------:|:--------------------:|
 | 64 | 81.4% | 86.8% | +5.9% |
@@ -101,6 +111,18 @@ test
 
 ![Accuracy across epochs (model size 128)](images/acc_model_128.png)
 ![Loss across epochs (model size 128)](images/loss_model_128.png)
+
+
+#### LLM Test
+
+| Model size (d_model) | Dev set accuracy | Dev accuracy (transfer learning) | Transfer Improvement |
+|:--------------------:|:----------------:|:--------------------------------:|:--------------------:|
+| 64 | 81.4% | 86.8% | +5.9% |
+| 128 | 88.0% | 93.6% | +5.6% |
+| 256 | 91.2% | 96.8% | +5.6% |
+| 512 | 92.3% | 97.7% | +5.4% |
+| 1024| 93.7% | 99.1% | +5.4% |
+
 ### Expansion to Larger Task
 
 ### Statistical Analysis
