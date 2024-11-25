@@ -143,6 +143,7 @@ The dataset was taken from text8.
 
 ## References
 ******************************* workspace ******************************
+count = 20
 - Attention is all you need, Vaswani et. al.,  	arXiv:1706.03762 [cs.CL]
 - Linformer: Self-Attention with Linear Complexity, Wang et al. arXiv:2006.04768 [cs.LG]
 - Preformer: Predictive Transformer with Multi-Scale Segment-wise Correlations for Long-Term Time Series Forecasting, Du et al. arXiv:2202.11356 [cs.LG]
@@ -158,6 +159,14 @@ The dataset was taken from text8.
 - Language Models are Few-Shot Learners. arXiv:2005.14165 [cs.CL]
 - The Llama 3 Herd of Models. arXiv:2407.21783 [cs.AI]
 - Training Compute-Optimal Large Language Models.  	arXiv:2203.15556 [cs.CL]
+- Why does the effective context length of LLMs fall short? arXiv:2410.18745v1 [cs.CL] 24 Oct 2024
+- FlashAttention-2: Faster Attention with better Parallelism with Working Partitioning  	arXiv:2307.08691 [cs.LG]
+- nGPT: Normalized Transformer with Representation Learning on the Hypersphere arXiv:2410.01131 [cs.LG]
+- How Does Critical Batch Size Scale in Pre-Training? arXiv:2410.21676 [cs.LG]- 
+- GPT-NeoX @software{gpt-neox-library,
+  title = {{GPT-NeoX: Large Scale Autoregressive Language Modeling in PyTorch}},
+  url = {https://www.github.com/eleutherai/gpt-neox},
+- 
 
 
 ## Personal Notes

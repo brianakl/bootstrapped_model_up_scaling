@@ -43,7 +43,7 @@ def justnorm(x):
     return ret
 
 
-class AttentionHead(nn.Module):
+class AttentionHead(torch.nn.Module):
     def __init__(self, d_model, d_internal, rope_percentage=1.0):
         super().__init__()
 
@@ -93,6 +93,10 @@ class AttentionHead(nn.Module):
 
         W_Q, W_K, W_V = torch.split(self.qkv.weight.data, self.d_internal, dim=0)
 
+        W_Q /= 2
+        W_K /= 2
+        W_V /= 2
+
         W_Q = torch.cat([W_Q, torch.zeros(d_inew - self.d_internal, self.d_model, device=DEVICE).normal_(0,std)], dim=0)
         W_Q = torch.cat([W_Q, torch.zeros(d_inew, d_mnew - self.d_model, device=DEVICE).normal_(0,std)], dim=1)
         # TODO: this is probably wrong/inaccurate
@@ -100,17 +104,17 @@ class AttentionHead(nn.Module):
         #       especially with the nGPT model.
         #       maybe just remove it?
         for i in range(self.d_internal, d_inew):
-            W_Q[i][i] = 1.
+            W_Q[i][i] = .1
 
         W_K = torch.cat([W_K, torch.zeros(d_inew - self.d_internal, self.d_model, device=DEVICE).normal_(0,std)], dim=0)
         W_K = torch.cat([W_K, torch.zeros(d_inew, d_mnew - self.d_model, device=DEVICE).normal_(0,std)], dim=1)
         for i in range(self.d_internal, d_inew):
-            W_K[i][i] =  1.
+            W_K[i][i] =  .1
 
         W_V = torch.cat([W_V, torch.zeros(d_inew - self.d_internal, self.d_model, device=DEVICE).normal_(0,std)], dim=0)
         W_V = torch.cat([W_V, torch.zeros(d_inew, d_mnew - self.d_model, device=DEVICE).normal_(0,std)], dim=1)
         for i in range(self.d_internal, d_inew):
-            W_V[i][i] = 1.
+            W_V[i][i] = .1
 
         self.qkv.weight.data = torch.cat([W_Q, W_K, W_V], dim=0)
 
@@ -128,9 +132,10 @@ class AttentionHead(nn.Module):
         W_K = justnorm(W_K)
         W_V = justnorm(W_V)
         self.qkv.weight.data = torch.cat([W_Q, W_K, W_V], dim=0)
+        self.sqk = justnorm(self.sqk.data)
 
 
-class TransformerLayer(nn.Module):
+class TransformerLayer(torch.nn.Module):
     def __init__(self, d_model, num_heads):
         super().__init__()
         self.d_model = d_model
@@ -225,7 +230,7 @@ class TransformerLayer(nn.Module):
         for head in self.heads:
             head.expand(d_mnew, d_inew)
 
-        # TODO: maybe expand?       | low priority since linear layers learn pretty fast
+        # TODO: EXPAND!!
         self.Wu = torch.nn.Linear(d_mnew, 2 * 4 * d_mnew)
         self.Wv = torch.nn.Linear(4*d_mnew, d_mnew)
 
@@ -251,7 +256,7 @@ class TransformerLayer(nn.Module):
             h.normalize()
 
 
-class Decoder(nn.Module):
+class Decoder(torch.nn.Module):
     def __init__(self, num_layers, d_model, vocab_size, num_heads):
         super().__init__()
         self.num_layers = num_layers
@@ -277,19 +282,19 @@ class Decoder(nn.Module):
         self.sz = torch.nn.Parameter(self.sz_init * torch.ones(vocab_size, dtype=torch.float32))
 
 
-        self.tophat = torch.nn.Sequential(          # LM head for finetuning
-            torch.nn.Linear(d_model, 4*d_model),
-            torch.nn.GELU(),
-            torch.nn.Linear(4*d_model, d_model),
-            torch.nn.GELU(),
-            torch.nn.Linear(d_model, self.output_classes),
-        )
+        # self.tophat = torch.nn.Sequential(          # LM head for finetuning
+        #     torch.nn.Linear(d_model, 4*d_model),
+        #     torch.nn.GELU(),
+        #     torch.nn.Linear(4*d_model, d_model),
+        #     torch.nn.GELU(),
+        #     torch.nn.Linear(d_model, self.output_classes),
+        # )
 
 
     def forward(self, x):
         if self.pretraining:
             x = self.embeddings(x) 
-            x = self.dout(x)
+            # x = self.dout(x)  # not needed for nGPT model
             t = x
             for head in self.blocks:
                 t = head(t)
@@ -298,14 +303,15 @@ class Decoder(nn.Module):
             t = sz * self.lin(t)
 
             return self.sm(t)
-        else:
-            with torch.no_grad():
-                x = self.embeddings(x) 
-                t = x
-                for head in self.blocks:
-                    t = head(t)
-
-            return self.tophat(t)
+        # else:
+        #     with torch.no_grad():
+        #         x = self.embeddings(x) 
+        #         t = x
+        #         for head in self.blocks:
+        #             t = head(t)
+        #
+        #     return self.sm(t)
+        #   # return self.tophat(t)
 
 
     def expand(self, d_mnew):
@@ -327,10 +333,11 @@ class Decoder(nn.Module):
 
 
     def normalize(self):
-        for block in self.blocks:
-            block.normalize()
 
         self.embeddings.weight.data = justnorm(self.embeddings.weight.data)
         self.lin.weight.data = justnorm(self.lin.weight.data)
+        self.sz.data = justnorm(self.sz.data)
 
+        for block in self.blocks:
+            block.normalize()
 
