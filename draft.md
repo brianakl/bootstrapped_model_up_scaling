@@ -2,22 +2,71 @@
 
 
 ## Abstract
-Due to the quadratic complexity of self attention, some methods have been developed to use smaller models as initalizations for training larger Large Language Models (LLMs) as described in [1].
+<!--Due to the quadratic complexity of self attention, some methods have been developed to use smaller models as initalizations for training larger Large Language Models (LLMs) as described in [1].-->
+<!---->
+<!--This method however requires a doubling of the model size, in this paper we show that this is not strictly neccesary and that a fractional scale up and provide more robust model performance.-->
+<!---->
+<!--Additionally, there have been recent breakthroughs that can also drastically reduce pre-training time by using normalization techniques that acheive 4-20x convergence speed up [2]. -->
+<!---->
+<!--This method has been used to reach a models capacity. -->
+<!---->
+<!--Our methods show that it is not required to train a model to maximum performance in order to scale up a model and that the scaling up procedure can be incremental to preserve performance in the scaling process.-->
+The quadratic complexity of self-attention[vaswani] has led to the development of methods that use smaller models as initializations for training larger Large Language Models (LLMs)[1].
 
-This method however requires a doubling of the model size, in this paper we show that this is not strictly neccesary and that a fractional scale up and provide more robust model performance.
+While these methods typically require doubling the model size, our research demonstrates that this is not strictly necessary. 
 
-Additionally, there have been recent breakthroughs that can also drastically reduce pre-training time by using normalization techniques that acheive 4-20x convergence speed up [2]. 
+We propose a fractional scale-up approach that provides more robust and stable model performance. 
 
-This method has been used to reach a models capacity. 
+Recent breakthroughs in normalization techniques have shown potential to drastically reduce pre-training time, achieving 4-20x convergence speed-up. 
 
-Our methods show that it is not required to train a model to maximum performance in order to scale up a model and that the scaling up procedure can be incremental to preserve performance in the scaling process.
+Building on these advancements, our study introduces a novel method for incrementally scaling up models while preserving performance. 
+
+Our findings indicate that training a model to maximum performance is not a prerequisite for successful scale-up. 
+
+Instead, we present an incremental scaling process that maintains model efficacy throughout expansion. 
+
+This approach offers a more efficient and flexible alternative to existing scaling methods, potentially revolutionizing the development of larger, more capable LLMs.
 
 
 ## Introduction
-- Linformer
-- Smart Scaling
-- Scaling laws
-- nGPT
+
+Current Transformer[vaswani] models of various sizes are all being trained on the same problem.
+
+At a low level we can see the decoder architecture is training models to accurately predict the next token in a sequence [gpt2 paper].
+
+We can philosophize what is actually required for next token prediction and whether or not intelligence is simply a computation. 
+
+But, the main point to bring up in this is that models of all sizes are learning low dimensional projections of the same problem space.
+
+This is evident in their sharing of spectral decomposition [linformer] and the rapid training speed up in the normalized GPT (nGPT) architecture.
+
+
+Additionally, it has been shown that models can be simply reduced to a lower dimensional model with fewer parameters and acheive similar performance using simple dimensionality reductions techniques [find citation].
+
+Or, when you decrease the number of parameters of a model you can only get as good or worse performance.
+
+But, as has been repeatedly shown, the more parameters a model has the better it performs. 
+
+A reason for this might have to do with the lottery ticket hypothesis, where larger models are more likely to have stronger and more robust subnetworks with better initalizations.
+
+This makes removing any parameters of a larger model neccesarily make it perform worse. 
+
+This has also been demonstrated with the results of various transformer architectures that were developed following Vaswani et. al. [linformer, Performer, Reformer].
+
+
+The current LLM training loop requires a lengthy warmup stage where up to 10% of the total training tokens are used to warm up the model[citation needed] to ensure a better initalization. 
+
+Additionally, these models require batch sizes upwards of 1 million tokens, and context lengths of 4096 tokens or more [gpt3].
+
+This is radically inefficent as the training context length often ends up being less than the effective context lenght in testing [critical batch size].
+
+
+Most methods that achieve better model performance involve modifying the architecture to let the model learn faster [Roformer, nGPT]. 
+
+These methods do not involve changing the model size but rather finding a way to force the model to learn faster. 
+
+
+
 
 ## Methodology
 lorem
