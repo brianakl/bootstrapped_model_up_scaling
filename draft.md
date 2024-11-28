@@ -21,6 +21,26 @@ This approach offers a more efficient and flexible alternative to existing scali
 
 ## Introduction
 
+Modern LLM architectures are descendants of the original transformer architecture devised under Vaswani et al. [Vaswani et. al.].
+
+State of the art models currently are based on a decoder framework and trained on next token prediction [gpt3, llama3].
+
+These models also involve lengthy pre-training stages to ensure the larger models have better initalizations [gpt3, llama3].
+
+The general consensus is that a model should be trained on 20 tokens for every parameter in it [scaling laws?, or chinchilla].
+
+Additionally, models are being trainined on increasingly longer context lengths [cite], even though this requires increasingly higher quality data to fill the context length adaquently [cite].
+
+
+There has been evidence that this is rather inefficient as models tend to performe significantly worse in testing on longer context lengths, suggesting that the quality of long context data in the training corpus is not adaquet [critical context length].
+
+There has also been research done on efficient training, suggesting that some hyperparameters that greatly increase the complexity of training, such as context length, need not be so large [training BERT on an academic budget].
+
+Additionally, new architectures can be used to provide faster convergence [roformer, linformer, performer, nGPT].
+
+
+This leads us into our problem.
+
 Current Transformer[vaswani] models of various sizes are all being trained on the same problem.
 
 At a low level we can see the decoder architecture is training models to accurately predict the next token in a sequence [gpt2 paper].
@@ -29,7 +49,7 @@ We can philosophize what is actually required for next token prediction and whet
 
 But, the main point to bring up in this is that models of all sizes are learning low dimensional projections of the same problem space.
 
-This is evident in their sharing of spectral decomposition [linformer] and the rapid training speed up in the normalized GPT (nGPT) architecture.
+This is evident in their sharing of spectral decomposition [linformer] and the rapid training speed up in the normalized GPT (nGPT) architecture that shows Transformers perform representation learning on the hypersphere.
 
 
 Additionally, it has been shown that models can be simply reduced to a lower dimensional model with fewer parameters and acheive similar performance using simple dimensionality reductions techniques [find citation].
@@ -55,6 +75,8 @@ This is radically inefficent as the training context length often ends up being 
 Most methods that achieve better model performance involve modifying the architecture to let the model learn faster [Roformer, nGPT]. 
 
 These methods do not involve changing the model size but rather finding a way to force the model to learn faster. 
+
+
 
 
 
