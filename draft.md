@@ -18,6 +18,8 @@ Instead, we present an incremental scaling process that maintains model efficacy
 
 This approach offers a more efficient and flexible alternative to existing scaling methods, potentially revolutionizing the development of larger, more capable LLMs.
 
+This approach also opens the door for future work that could enable efficient scaling of both model width and depth.
+
 
 ## Introduction
 
@@ -77,12 +79,66 @@ Most methods that achieve better model performance involve modifying the archite
 These methods do not involve changing the model size but rather finding a way to force the model to learn faster. 
 
 
+The Roformer architecture provides a more effective way to insert postional information into the self-attention process.
 
+The original method using sinusodial embeddings at the model's input proves to be ineffective since downstream layers, the positional information gets lost [find citation].
+
+With the Roformer we directly insert the positional information into every self attention step.
+
+This has allowed for faster convergence across training [Roformer].
+
+
+
+The recent nGPT (normalized GPT) architecture has also led to a significant speed up in training speed.
+
+In addition, there is also a normalization step after each batch step, details of the implementation can be found in Loshchilov et al. [nGPT].
+
+
+table:
+normal transformer
+    - x_a = ATTN(LayerNorm(x))
+    - x = x + x_a
+    - x_b = MLP(LayerNorm(x))
+    - x_b = x + x_b
+    - x = LayerNorm(x)
+
+nGPT:
+    - x_a = Norm(Attn(x))
+    - x = Norm(x + a(x_a - x))
+    - x_b = Norm(MLP(x))
+    - x = Norm(x + b(x_b - x))
+
+A method of scaling samller models to use as initalizations for larger models has been developed concurrently with our research. 
+
+Their HyperCloning scaling involves doubling the size of all matrices with clones of the original matrix taking up all four quadrants of the new matrix.
+
+They were able to demonstrate substantial downstream model improvements after performing Hyperscaling.
+
+
+This lends credence to our formulation which uses their findings that the best initalization is a simple symmetric expansion of the model dimensions.
+
+Additionally, they demonstrated that there is a limit of how much information can be transfered from the samller model to the larger one, indicating that there is an optimal amount to pretrain the smaller model for hyperscaling.
+
+Where their experiment was lacking was in the models inability to scale continuously.
+
+This smoother scaling technique allows the model effectively ride the most learning efficient part of training, while also taking advantage of having a larger model then learn more complex patterns in the language.
 
 
 
 ## Methodology
-lorem
+
+The main idea this scaling procedure is to train for the 20% of training tokens that account for 80% of the performance.
+
+Since effect on model performance of each new token seen by the model decreases, this suggests that there is an optimal ammount of training to do on a smaller model to maximize amount of knowledge transfered and minimize total number of tokens seen.
+
+A sort of pareto distribution.
+
+This usually is about the first 20% of training tokens seen, after that the effeicency of training effect of each new token seen decreases precipteously.
+
+Following the methodologies of Samragh et al. [scaling smart], a modified version of HyperCloning was implemented.
+
+Namely, there are muliple times where hypercloning happens in training and the hyper cloning itself was done fractionally and not by merely doubling the matrix each time.
+
 
 ## Experiments
 lorem
