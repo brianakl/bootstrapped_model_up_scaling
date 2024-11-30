@@ -3,6 +3,26 @@ import torch.nn.functional as F
 
 DEVICE = 'cuda' if torch.cuda.is_available() else 'cpu'
 
+
+
+# LM Head for downstream training
+class LMHead(torch.nn.Module):
+    def __init__(self, model, hidden_size, vocab_size):
+        super().__init__()
+        self.fnn = torch.nn.Sequential(
+            torch.nn.Linear(hidden_size, hidden_size),
+            torch.nn.GELU(),
+            torch.nn.Dropout(0.1),
+            torch.nn.Linear(hidden_size, vocab_size),
+            torch.nn.Softmax(dim=-1),
+        )
+        self.model = model
+        self.model.pretraining = False
+
+    def forward(self, x):
+        return self.ffn(self.model(x))
+
+
 # RoPE from GPTneo
 class Rotary(torch.nn.Module):
     def __init__(self, dim, base=10000):
