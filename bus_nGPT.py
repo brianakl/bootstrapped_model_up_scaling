@@ -1,4 +1,5 @@
 import torch
+import torch.nn.functional as F
 
 DEVICE = 'cuda' if torch.cuda.is_available() else 'cpu'
 
@@ -42,27 +43,26 @@ def justnorm(x):
     ret = x / x.norm(p=2, dim=-1, keepdim=True)
     return ret
 
-
 class AttentionHead(torch.nn.Module):
-    def __init__(self, d_model, d_internal, rope_percentage=1.0):
+    def __init__(self, d_model, d_internal, num_heads, rope_percentage=1.0):
         super().__init__()
 
-        self.tril = torch.tril(torch.ones(seq_len, seq_len, device=DEVICE))
-
-        self.qkv = torch.nn.Linear(d_model, 3*d_internal, bias=False)
+        stdev = 1/((d_model+d_internal)**0.5)
+        self.qkv = torch.nn.Parameter(torch.ones((3*d_internal, d_model), device=DEVICE).uniform_(-stdev,stdev), requires_grad=True)
+        self.qkv.data = justnorm(self.qkv.data)
         self.d_model = d_model
         self.d_internal = d_internal
+        self.num_heads = num_heads
 
-        self.SoftMax = torch.nn.Softmax(dim=-1)
         self.rope = Rotary(d_internal)
         self.rope_percentage = rope_percentage
         
         self.sqk_init_value = 1.0       
         self.sqk_init_scaling = d_model ** -0.5
-        # self.sqk = torch.nn.Parameter(self.sqk_init_scaling*torch.ones(d_internal, dtype=torch.float32))
-        self.sqk = self.sqk_init_scaling*torch.ones(self.d_internal, dtype=torch.float32, device=DEVICE)
+        self.sqk = torch.nn.Parameter(self.sqk_init_scaling*torch.ones(d_internal, dtype=torch.float32), requires_grad=True)
 
 
+    # @torch.autocast(device_type=DEVICE)
     def forward(self, input_vecs):
         """
         args:
@@ -72,17 +72,19 @@ class AttentionHead(torch.nn.Module):
         """
         B, T, C = input_vecs.shape
 
-        qkv = self.qkv(input_vecs)
+        qkv = F.linear(input_vecs, self.qkv)
         Q, K, V = torch.split(qkv, qkv.size(2) // 3, dim=-1)
         cos, sin = self.rope(Q)
         Q, K = apply_rotary_pos_emb(Q, K, cos, sin)
-        Q = justnorm(Q)*self.sqk
-        K = justnorm(K)*self.sqk
+        sqk = (self.sqk * (self.sqk_init_value/self.sqk_init_scaling))#.view(1, 1, self.num_heads, self.d_model// self.num_heads)
+        Q = justnorm(Q)*sqk
+        K = justnorm(K)*sqk
 
         if self.training:
             out = F.scaled_dot_product_attention(Q, K, V, dropout_p=0, is_causal=True, scale=C**0.5)
         else:
             out = F.scaled_dot_product_attention(Q, K, V, dropout_p=0, is_causal=True, scale=C**0.5)
+
         return out
 
 
@@ -90,49 +92,29 @@ class AttentionHead(torch.nn.Module):
 
         del self.rope
         self.rope = Rotary(d_inew)
+        exp_ratio = self.d_model/d_mnew
 
-        W_Q, W_K, W_V = torch.split(self.qkv.weight.data, self.d_internal, dim=0)
+        self.qkv.data *= exp_ratio
+        W_Q, W_K, W_V = torch.chunk(self.qkv.data, 3, dim=0)
 
-        W_Q /= 2
-        W_K /= 2
-        W_V /= 2
+        W_Q = W_Q.repeat(2,2)[:d_inew, :d_mnew].clone()
+        W_K = W_K.repeat(2,2)[:d_inew, :d_mnew].clone()
+        W_V = W_V.repeat(2,2)[:d_inew, :d_mnew].clone()
 
-        W_Q = torch.cat([W_Q, torch.zeros(d_inew - self.d_internal, self.d_model, device=DEVICE).normal_(0,std)], dim=0)
-        W_Q = torch.cat([W_Q, torch.zeros(d_inew, d_mnew - self.d_model, device=DEVICE).normal_(0,std)], dim=1)
-        # TODO: this is probably wrong/inaccurate
-        #       I suspect that 1 might be too high and throw off the learning 
-        #       especially with the nGPT model.
-        #       maybe just remove it?
-        for i in range(self.d_internal, d_inew):
-            W_Q[i][i] = .1
-
-        W_K = torch.cat([W_K, torch.zeros(d_inew - self.d_internal, self.d_model, device=DEVICE).normal_(0,std)], dim=0)
-        W_K = torch.cat([W_K, torch.zeros(d_inew, d_mnew - self.d_model, device=DEVICE).normal_(0,std)], dim=1)
-        for i in range(self.d_internal, d_inew):
-            W_K[i][i] =  .1
-
-        W_V = torch.cat([W_V, torch.zeros(d_inew - self.d_internal, self.d_model, device=DEVICE).normal_(0,std)], dim=0)
-        W_V = torch.cat([W_V, torch.zeros(d_inew, d_mnew - self.d_model, device=DEVICE).normal_(0,std)], dim=1)
-        for i in range(self.d_internal, d_inew):
-            W_V[i][i] = .1
-
-        self.qkv.weight.data = torch.cat([W_Q, W_K, W_V], dim=0)
-
+        self.qkv.data = torch.cat([W_Q, W_K, W_V], dim=0)
         self.sqk_init_scaling = d_mnew ** -0.5
-        self.sqk.data = torch.cat([self.sqk.data, self.sqk_init_scaling*torch.ones(d_inew - self.d_internal, dtype=torch.float32, device=DEVICE)], dim=-1)
+        self.sqk.data = self.sqk.data.repeat(1,2)[0][:d_inew].clone() * exp_ratio
 
         self.d_internal = d_inew
         self.d_model = d_mnew
 
-        self.normalize()
 
     def normalize(self):
-        W_Q, W_K, W_V = torch.split(self.qkv.weight.data, self.d_internal, dim=0)
+        W_Q, W_K, W_V = torch.chunk(self.qkv.data, 3, dim=0)
         W_Q = justnorm(W_Q)
         W_K = justnorm(W_K)
         W_V = justnorm(W_V)
-        self.qkv.weight.data = torch.cat([W_Q, W_K, W_V], dim=0)
-        self.sqk = justnorm(self.sqk.data)
+        self.qkv.data = torch.cat([W_Q, W_K, W_V], dim=0)
 
 
 class TransformerLayer(torch.nn.Module):
@@ -142,70 +124,65 @@ class TransformerLayer(torch.nn.Module):
         self.d_internal = d_model//num_heads
         self.num_heads = num_heads
 
-        self.heads = nn.ModuleList([AttentionHead(d_model, self.d_internal) for _ in range(num_heads)])
-        self.FFN = torch.nn.Sequential(
-            torch.nn.Linear(self.d_model, 4*d_model),
-            torch.nn.GELU(),
-            torch.nn.Linear(4*d_model, self.d_model),
-        )
-        self.Wu = torch.nn.Linear(d_model, 2 * 4 * d_model)
-        self.Wv = torch.nn.Linear(4*d_model, d_model)
+        self.heads = torch.nn.ModuleList([AttentionHead(d_model, self.d_internal, num_heads) for _ in range(num_heads)])
+        stdev = 1/((4*d_model + d_model)**0.5)
+        self.Wu=torch.nn.Parameter(torch.zeros((2*4*d_model, d_model), device=DEVICE).uniform_(-stdev,stdev), requires_grad=True)
+        self.Wu.data = justnorm(self.Wu.data)
+        self.Wv = torch.nn.Parameter(torch.zeros((d_model, 4*d_model), device=DEVICE).uniform_(-stdev,stdev), requires_grad=True)
+        self.Wv.data = justnorm(self.Wv.data)
         self.silu = torch.nn.SiLU()
-        self.W_O = torch.nn.Linear(d_model, d_model, False)
+        self.W_O =  torch.nn.Parameter(torch.zeros((d_model, d_model), device=DEVICE).uniform_(-stdev,stdev), requires_grad=True)
+        self.W_O.data = justnorm(self.W_O.data)
 
         self.mlp_alpha_init_value = 0.05
         self.mlp_alpha_init_scaling = 1. 
-        self.mlp_alpha = torch.nn.Parameter(self.mlp_alpha_init_scaling*torch.ones(d_model, dtype=torch.float32))
-        # self.mlp_alpha = self.mlp_alpha_init_scaling*torch.ones(d_model, dtype=torch.float32, device=DEVICE)
+        self.mlp_alpha = torch.nn.Parameter(self.mlp_alpha_init_scaling*torch.ones(d_model, dtype=torch.float32), requires_grad=True)
 
         self.suv_init_value = 1.0
         self.suv_init_scaling = 1.0
-        self.suv = torch.nn.Parameter(self.suv_init_scaling*torch.ones(2 * 4 * d_model, dtype=torch.float32))
-        # self.suv = self.suv_init_scaling*torch.ones(2 * 4 * d_model, dtype=torch.float32, device=DEVICE)
+        self.suv = torch.nn.Parameter(self.suv_init_scaling*torch.ones(2 * 4 * d_model, dtype=torch.float32), requires_grad=True)
         self.sqdm = d_model ** 0.5
 
         self.attn_alpha_init_value = 0.05
         self.attn_alpha_init_scaling = d_model ** -0.5 
-        self.attn_alpha = torch.nn.Parameter(self.attn_alpha_init_scaling*torch.ones(d_model, dtype=torch.float32))
-        # self.attn_alpha = self.attn_alpha_init_scaling*torch.ones(d_model, dtype=torch.float32, device=DEVICE)
+        self.attn_alpha = torch.nn.Parameter(self.attn_alpha_init_scaling*torch.ones(d_model, dtype=torch.float32), requires_grad=True)
 
-
+    # @torch.autocast(device_type=DEVICE)
     def forward(self, x):
         """
         :param x: input embeddings
+                [batch size, context length, d_model]
         :return: output of decoder block, same shape as input
         """
         t = x
         t = torch.cat([head(t) for head in self.heads], dim=-1)
 
-        t = justnorm(t)
-
-        t = self.W_O(t)
+        t = F.linear(t, self.W_O)
 
         lr = self.attn_alpha * (self.attn_alpha_init_value / self.attn_alpha_init_scaling)
         lr = torch.abs(lr)
 
         A_norm = justnorm(x) 
         B_norm = justnorm(t)
-                
+
         res = A_norm + lr * (B_norm - A_norm)
         x = justnorm(res)
 
 
-        uv = self.Wu(x)
+        uv = F.linear(x, self.Wu)
         suv = (self.suv * ((self.suv_init_value/self.suv_init_scaling) * (self.d_model ** 0.5))) 
         uv = suv * uv
         t = justnorm(uv)
         
 
         u, v = torch.chunk(t, 2, dim=-1)
-        res = u * self.silu(v)
+        res = u * F.silu(v) #self.silu(v)
 
-        t = self.Wv(res)
+        t = F.linear(res, self.Wv)
 
         lr = self.mlp_alpha * (self.mlp_alpha_init_value / self.mlp_alpha_init_scaling)
         lr = torch.abs(lr)
-        A_norm = justnorm(x)
+        A_norm = justnorm(x) 
         B_norm = justnorm(t)
 
         res = A_norm + lr * (B_norm - A_norm)
@@ -213,50 +190,55 @@ class TransformerLayer(torch.nn.Module):
 
         return res
 
-
     def expand(self, d_mnew, d_inew):
-        self.FFN = torch.nn.Sequential(
-            torch.nn.Linear(d_mnew, 4*d_mnew),
-            torch.nn.GELU(),
-            torch.nn.Linear(4*d_mnew, d_mnew),
-        )
+        exp_ratio = self.d_model/d_mnew
+        self.W_O.data *= exp_ratio
         self.sqdm = d_mnew ** 0.5
-        self.W_O.weight.data = torch.cat([self.W_O.weight.data, torch.zeros(d_mnew-self.d_model, self.d_model, device=DEVICE).normal_(0,std)], dim=0)
-        self.W_O.weight.data = torch.cat([self.W_O.weight.data, torch.zeros(d_mnew, d_mnew-self.d_model,  device=DEVICE).normal_(0,std)], dim=1)
-        # TODO: apply same update as in attention head class
-        for i in range(self.d_model+1, d_mnew):
-            self.W_O.weight.data[i][i] = 1
+        self.W_O.data = self.W_O.data.repeat(2,2)
+        self.W_O.data = self.W_O.data[:d_mnew, :d_mnew].clone()
 
         for head in self.heads:
             head.expand(d_mnew, d_inew)
 
-        # TODO: EXPAND!!
-        self.Wu = torch.nn.Linear(d_mnew, 2 * 4 * d_mnew)
-        self.Wv = torch.nn.Linear(4*d_mnew, d_mnew)
+        self.Wv.data *= exp_ratio
+        self.Wv.data = self.Wv.data.repeat(2,2)
+        self.Wv.data = self.Wv.data[:d_mnew, :4*d_mnew].clone()
 
-        self.mlp_alpha.data = torch.cat([self.mlp_alpha.data, self.mlp_alpha_init_scaling*torch.ones(d_mnew - self.d_model, dtype=torch.float32, device=DEVICE)], dim=-1)
-        self.suv.data = torch.cat([self.suv.data, self.suv_init_scaling*torch.ones(2 * 4 * (d_mnew - self.d_model), dtype=torch.float32, device=DEVICE)],dim=-1)
+        self.Wu.data *= exp_ratio
+        b1, b2 = self.Wu.data.chunk(2)
+        b1 = b1.repeat(2,2)[:4*d_mnew, :d_mnew]
+        b2 = b2.repeat(2,2)[:4*d_mnew, :d_mnew]
+
+        b = torch.cat([b1,b2])
+        self.Wu.data = b.clone()
+
+        self.mlp_alpha.data *= exp_ratio
+        self.mlp_alpha.data = self.mlp_alpha.data.repeat(1,2)[0][:d_mnew].clone()
+        self.suv.data *= exp_ratio
+        s1, s2 = self.suv.data.clone().chunk(2)
+        s1 = s1.repeat(1,2)[:, :4*d_mnew]
+        s2 = s2.repeat(1,2)[:, :4*d_mnew]
+        self.suv.data = torch.cat([s1,s2], dim=-1)[0].clone()
         
         self.attn_alpha_init_scaling = d_mnew ** -0.5 
-        self.attn_alpha.data = torch.cat([self.attn_alpha.data, self.attn_alpha_init_scaling*torch.ones(d_mnew - self.d_model, dtype=torch.float32, device=DEVICE)], dim=-1)
+        self.attn_alpha.data *= exp_ratio
+        self.attn_alpha.data = self.attn_alpha.data.repeat(1,2)[0][:d_mnew].clone()
 
         self.d_model = d_mnew
         self.d_internal = d_inew
-        self.normalize()
 
-    def normalize(self):
-        self.W_O.weight.data =justnorm(self.W_O.weight.data)
-        self.Wu.weight.data = justnorm(self.Wu.weight.data)
-        self.Wv.weight.data = justnorm(self.Wv.weight.data)
-        self.mlp_alpha.data = justnorm(self.mlp_alpha.data)
-        self.suv.data = justnorm(self.suv.data)
-        self.attn_alpha.data = justnorm(self.attn_alpha.data)
+    def normalize(self, b = True):
 
-        for h in self.heads:
-            h.normalize()
+        self.W_O.data =justnorm(self.W_O)
+        self.Wu.data = justnorm(self.Wu)
+        self.Wv.data = justnorm(self.Wv)
+
+        if b:
+            for h in self.heads:
+                h.normalize()
 
 
-class Decoder(torch.nn.Module):
+class Decoder(nn.Module):
     def __init__(self, num_layers, d_model, vocab_size, num_heads):
         super().__init__()
         self.num_layers = num_layers
@@ -265,9 +247,8 @@ class Decoder(torch.nn.Module):
         self.num_heads = num_heads
         self.blocks = torch.nn.ModuleList([TransformerLayer(d_model, num_heads) for _ in range(num_layers)])
 
-        self.sm = torch.nn.LogSoftmax(dim=-1)
-        self.lin = torch.nn.Linear(d_model, vocab_size)
-        self.dout = torch.nn.Dropout(0.1)
+        stdev = 1/((d_model)**0.5)
+        self.lin = torch.nn.Parameter(torch.zeros((vocab_size, d_model), device=DEVICE).uniform_(-stdev,stdev))
 
         self.embeddings = torch.nn.Embedding(vocab_size, d_model, device=DEVICE)
         torch.backends.cuda.enable_flash_sdp(True)
@@ -279,65 +260,55 @@ class Decoder(torch.nn.Module):
 
         self.sz_init = 1.
         self.sz_scale = d_model ** -0.5
-        self.sz = torch.nn.Parameter(self.sz_init * torch.ones(vocab_size, dtype=torch.float32))
+        self.sz = torch.nn.Parameter(self.sz_scale * torch.ones(vocab_size, dtype=torch.float32))
 
-
-        # self.tophat = torch.nn.Sequential(          # LM head for finetuning
-        #     torch.nn.Linear(d_model, 4*d_model),
-        #     torch.nn.GELU(),
-        #     torch.nn.Linear(4*d_model, d_model),
-        #     torch.nn.GELU(),
-        #     torch.nn.Linear(d_model, self.output_classes),
-        # )
-
-
-    def forward(self, x):
+    @torch.autocast(device_type=DEVICE)
+    def forward(self, input:torch.Tensor):
         if self.pretraining:
-            x = self.embeddings(x) 
-            # x = self.dout(x)  # not needed for nGPT model
-            t = x
+            x = self.embeddings(input) 
+
             for head in self.blocks:
-                t = head(t)
+                x = head(x) + x
 
+            b = F.linear(x, self.lin)
             sz = self.sz * (self.sz_init/self.sz_scale)
-            t = sz * self.lin(t)
+            t = b * sz
 
-            return self.sm(t)
-        # else:
-        #     with torch.no_grad():
-        #         x = self.embeddings(x) 
-        #         t = x
-        #         for head in self.blocks:
-        #             t = head(t)
-        #
-        #     return self.sm(t)
-        #   # return self.tophat(t)
+            return t#F.softmax(t, dim=-1)
+        else:
+            # Headless mode
+            with torch.no_grad():
+                x = self.embeddings(input) 
+
+                for head in self.blocks:
+                    x = head(x) + x
+
+                return x
+
 
 
     def expand(self, d_mnew):
         d_inew = d_mnew // self.num_heads
-        self.lin = torch.nn.Linear(d_mnew, self.vocab_size)
+        exp_ratio = self.d_model/d_mnew
+        self.lin.data *= exp_ratio
+        self.lin.data = self.lin.data.repeat(1,2)[:, :d_mnew]
+        self.embeddings.weight.data = self.embeddings.weight.data.repeat(1,2)[:, :d_mnew].clone()
 
+        self.sz_scale = d_mnew ** -0.5
         for block in self.blocks:
             block.expand(d_mnew, d_inew)
 
-        self.embeddings = torch.nn.Embedding.from_pretrained(
-            torch.cat([
-                self.embeddings.weight, 
-                torch.ones(self.vocab_size, d_mnew-self.d_model, device=DEVICE).normal_(mean=0, std=std)
-                ], dim=1))
-
         self.d_model = d_mnew
         self.d_internal = d_inew
-        self.to(DEVICE)
+        self.normalize()
+        return self
 
 
-    def normalize(self):
+    def normalize(self, b = True):
 
         self.embeddings.weight.data = justnorm(self.embeddings.weight.data)
-        self.lin.weight.data = justnorm(self.lin.weight.data)
-        self.sz.data = justnorm(self.sz.data)
-
-        for block in self.blocks:
-            block.normalize()
+        self.lin.data = justnorm(self.lin.data)
+        if b:
+            for block in self.blocks:
+                block.normalize()
 
