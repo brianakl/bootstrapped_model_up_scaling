@@ -238,7 +238,7 @@ class TransformerLayer(torch.nn.Module):
                 h.normalize()
 
 
-class Decoder(nn.Module):
+class Decoder(torch.nn.Module):
     def __init__(self, num_layers, d_model, vocab_size, num_heads):
         super().__init__()
         self.num_layers = num_layers
