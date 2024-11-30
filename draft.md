@@ -1,4 +1,4 @@
-# Gradual Smart Scaling for Accelerated LLM Pre-training with small model initalization 
+# HCnGPT: HyperCloning nGPT (normalized GPT)
 
 
 ## Abstract
@@ -94,20 +94,6 @@ The recent nGPT (normalized GPT) architecture has also led to a significant spee
 In addition, there is also a normalization step after each batch step, details of the implementation can be found in Loshchilov et al. [nGPT].
 
 
-table:
-normal transformer
-    - x_a = ATTN(LayerNorm(x))
-    - x = x + x_a
-    - x_b = MLP(LayerNorm(x))
-    - x_b = x + x_b
-    - x = LayerNorm(x)
-
-nGPT:
-    - x_a = Norm(Attn(x))
-    - x = Norm(x + a(x_a - x))
-    - x_b = Norm(MLP(x))
-    - x = Norm(x + b(x_b - x))
-
 A method of scaling samller models to use as initalizations for larger models has been developed concurrently with our research. 
 
 Their HyperCloning scaling involves doubling the size of all matrices with clones of the original matrix taking up all four quadrants of the new matrix.
@@ -139,11 +125,100 @@ Following the methodologies of Samragh et al. [scaling smart], a modified versio
 
 Namely, there are muliple times where hypercloning happens in training and the hyper cloning itself was done fractionally and not by merely doubling the matrix each time.
 
+Typical LLM loss graphs show that about the first 20% of tokens seen account for ~90% of the total loss improvements.
 
-## Experiments
-lorem
+### nGPT Architecture
+As mentioned before the nGPT architecture focuses on normalizing the weight matrices of the transformer architecture.
+
+This involves removing all exisiting normalization layers in the model and replacing them with a standard vector normalization across the model dimentions.
+
+Loshchilov et al. sugest that this supports representational learning on the hypersphere and show how the nGPT model performs better implicit gradient descent as a meta-optimiztion [cite nGPT].
+
+Something transformers already perform but at a better level with nGPT.
+
+
+The primary reason for using this architecture was for the significant efficency gains.
+
+The nGPT architecture allows for direct training with no warm up or weight decay and reaching model capacity 4-20x faster [nGPT].
+
+As the authors have mentioned, they were able to reach a models capacity for a given parameter count significantly faster.
+
+To expand on this we incorporate the finding of [scaling smart] to scale the nGPT model
+
+The standard self attention mechanism is changed as follows:
+
+table:
+normal transformer
+    - x_a = ATTN(LayerNorm(x))
+    - x = x + x_a
+    - x_b = MLP(LayerNorm(x))
+    - x_b = x + x_b
+    - x = LayerNorm(x)
+
+nGPT:
+    - x_a = Norm(Attn(x))
+    - x = Norm(x + a(x_a - x))
+    - x_b = Norm(MLP(x))
+    - x = Norm(x + b(x_b - x))
+
+Although, as the authors mentioned, this adds some overhead per step that can be made more efficient with the creation of fused kernels for his operation. However, even with this overhead the nGPT architecture has a faster wall time learning rate (figure x).
+
+### HyperCloning
+The HyperCloning algorithm introduces an efficient method of model growth by allowing an effective way to expand the models width.
+
+This provides better initalization for a larger model resulting in better downstream performance with a reduced risk of failure due to poor model initalization, loss divergence, or poor hyperparameter tuning [hyperclone].
+
+The authors show that with HyperCloning they are able to demonstrate a 2-4x speed up of training speed and and improvement of final model performance when compared to standard random model weight initalizations.
+
+
+Hypercloning works as follows:
+
+W_L = [ W_s/2  W_s/2
+        W_s/2  W_s/2]
+
+This allows the model to perserve the performance with scaling since the output logits would be the same from one model to the next.
+
+### BUS
+Some limitations of the Hypercloning method described is that you necessarily need to double the model parameters in order to scale it.
+
+Our findings demonstrate that hyperscaling can also be done fractionally.
+
+This is done to allow a more gradual transition to the larger model with the idea behind it that you can use more compute resources on the larger model by scaling the model faster and more gradually.
+
+This idea is motivated by the lottery ticket hypothesis, where the larger model will perform better the more that it is trained.
+
+
+This introduces a new hyperparameter into training, let x be the predicted performance of the smaller model. 
+
+Since we are using smaller models, we can estimate using the performance of existing models as a heuristic for what the performance of this model should get to. 
+
+We use existing models since there is no need to waste compute on performing a predictive analysis on the intermediary model.
+
+Let \kappa be the percent of performance that we want to extract from the smaller model.
+
+Where the total performance is the difference between starting validation loss and final validation loss.
+
+We can then use the following formula to determine at what validation loss we should scale.
+
+
+tp * \kappa + mp = scaling target
+
+tp = final performance - starting performance
+\kappa = scaling ratio
+mp = predicted final model performance
+
+### Model and Training Details
+
+
+### Benchmark Performance
+
+As a benchmark we choose the NLI task while analyzing performance on both the SNLI and MNLI datasets. 
+
+This task was choosen due to its simplicity and the fact that the models of this small parameter count struggle on more standard benchmarks such as Hellaswag, openbookqa, arc, and winograde[cite all datasets].
+
 
 ## Conclusion
+
 lorem
 
 ## References
