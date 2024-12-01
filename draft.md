@@ -5,7 +5,7 @@ Recent advancements in language model scaling have highlighted the potential for
 
 This paper introduces HCnGPT (HyperCloning normalized GPT), a novel method that combines the efficiency gains of the normalized GPT (nGPT) architecture with a fractional scaling technique we call BUS (Bootstrapped model UpScaling). 
 
-Our research demonstrates that 1. the nGPT architecture provides significant improvements in training efficiency, with 4-20x faster convergence compared to traditional methods 2. fractional scaling, inspired by but improving upon HyperCloning, enables more gradual and flexible model growth 3. the introduction of the \kappa parameter allows for tuning the optimal point at which to scale the model.
+Our research demonstrates that 1. the nGPT architecture provides significant improvements in training efficiency 2. fractional scaling, inspired by but improving upon HyperCloning, enables more gradual and flexible model growth 3. the introduction of the \kappa parameter allows for tuning the optimal point at which to scale the model.
 
 
 We present experimental results on a 64M parameter model, showcasing the potential of this approach for developing LLMs that are not only larger but also more efficient and robust. 
