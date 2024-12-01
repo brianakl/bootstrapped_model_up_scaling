@@ -1,24 +1,22 @@
 # HCnGPT: HyperCloning nGPT (normalized GPT)
 
-
 ## Abstract
-The quadratic complexity of self-attention[vaswani] has led to the development of methods that use smaller models as initializations for training larger Large Language Models (LLMs)[1].
+Recent advancements in language model scaling have highlighted the potential for more efficient and flexible approaches to developing larger, more capable models. 
 
-While these methods typically require doubling the model size, our research demonstrates that this is not strictly necessary. 
+This paper introduces HCnGPT (HyperCloning normalized GPT), a novel method that combines the efficiency gains of the normalized GPT (nGPT) architecture with a fractional scaling technique we call BUS (Bootstrapped model UpScaling). 
 
-We propose a fractional scale-up approach that provides more robust and stable model performance. 
+Our research demonstrates that 1. the nGPT architecture provides significant improvements in training efficiency, with 4-20x faster convergence compared to traditional methods 2. fractional scaling, inspired by but improving upon HyperCloning, enables more gradual and flexible model growth 3. the introduction of the \kappa parameter allows for tuning the optimal point at which to scale the model.
 
-Recent breakthroughs in normalization techniques have shown potential to drastically reduce pre-training time, achieving 4-20x convergence speed-up. 
 
-Building on these advancements, our study introduces a novel method for incrementally scaling up models while preserving performance. 
+We present experimental results on a 64M parameter model, showcasing the potential of this approach for developing LLMs that are not only larger but also more efficient and robust. 
 
 Our findings indicate that training a model to maximum performance is not a prerequisite for successful scale-up. 
 
-Instead, we present an incremental scaling process that maintains model efficacy throughout expansion. 
+Instead, we demonstrate an incremental scaling process that maintains model efficacy throughout expansion. 
 
-This approach offers a more efficient and flexible alternative to existing scaling methods, potentially revolutionizing the development of larger, more capable LLMs.
+This research opens new avenues for efficient scaling of both model width and depth, potentially revolutionizing the development of larger language models. 
 
-This approach also opens the door for future work that could enable efficient scaling of both model width and depth.
+By enabling more efficient use of computational resources and smoother transitions between model sizes, HCnGPT presents a promising direction for the future of LLM development.
 
 
 ## Introduction
@@ -207,7 +205,13 @@ tp = final performance - starting performance
 \kappa = scaling ratio
 mp = predicted final model performance
 
-### Model and Training Details
+
+### Model Details
+Due to compute limitation a very small model final model was chose of 64M parameters.
+
+The architecture choosen was a decoder model with Rotary Positional encoding [Roformer] as this is the current State-of-the-Art architecture.
+
+The modifications mentioned above of using the nGPT framework were also done to maximize performance.
 
 
 ### Benchmark Performance
@@ -218,8 +222,30 @@ This task was choosen due to its simplicity and the fact that the models of this
 
 
 ## Conclusion
+Our research introduces a novel approach to scaling language models, combining the efficiency of nGPT architecture with a fractional HyperCloning technique we call BUS (Bootstrapped model UpScaling).
 
-lorem
+This Method Addresses several key challenges in the development of larger, more capable LLMs.
+
+
+By leveraging the nGPT architecture, we achieve significant improvements in training efficiency, with 4-20x faster convergence compared to traditional methods. 
+
+This allows us to capitalize on the rapid inital learning phase of model training, where approximately 15% of training tokens account of about 85% of total loss improvements.
+
+
+Our fractional scaling approach, inspired by but improving upon HyperCloning, enables more gradual and flexible model growth. 
+
+This strategy allows for, optimal utilization of compute resources, smoother transitions between model sizes, and better preservation of learned representations during scaling.
+
+The introduction of the \kappa parameter provides a tunable mechanism for determining the ideal point at which to scale the model, balancing the trade-off between extracting maximum performance from smaller models and leveraging the benefits of larger architectures. 
+
+While our experiments were limited to a 64M parameter model due to computational constraints, the principles demonstrated here have potential implications for scaling much larger models. 
+
+The combination of nGPT's efficiency gains and our fractional scaling technique opens new possibilities for developing LLMs that are not only larger but also more efficient and robust. 
+
+Future work should focus on, applying this technique to larger model scales, investigating the optimal \kappa values for different model sizes and tasks, exploring the potential for scaling both model width and depth using this approach, and analyzing the long-term effects of this scaling method on model performance and generalization
+
+In conclusion, our BUS method, built upon the foundations of nGPT and HyperCloning, presents a promising direction for the future of LLM development. By enabling more efficient and flexible scaling, we pave the way for the creation of more powerful and resource-efficient language models.
+
 
 ## References
 [1] Scaling Smart
