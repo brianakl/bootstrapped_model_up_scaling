@@ -9,18 +9,42 @@ DEVICE = 'cuda' if torch.cuda.is_available() else 'cpu'
 class LMHead(torch.nn.Module):
     def __init__(self, model, hidden_size, vocab_size):
         super().__init__()
-        self.fnn = torch.nn.Sequential(
+        self.ffn = torch.nn.Sequential(
+            # torch.nn.Flatten(),
+            torch.nn.Linear(hidden_size, hidden_size),
+            torch.nn.GELU(),
+            torch.nn.Dropout(0.1),
             torch.nn.Linear(hidden_size, hidden_size),
             torch.nn.GELU(),
             torch.nn.Dropout(0.1),
             torch.nn.Linear(hidden_size, vocab_size),
-            torch.nn.Softmax(dim=-1),
+            # torch.nn.Softmax(dim=-1),
         )
         self.model = model
         self.model.pretraining = False
+        self.tril = torch.ones(128, 128, device=DEVICE).half()
 
-    def forward(self, x):
-        return self.ffn(self.model(x))
+    def forward(self, input_ids, attention_mask=None, labels=None):
+
+        # B, T, C = input_ids.shape
+        
+        # if attention_mask != None:
+        #     mask = attention_mask.masked_fill(self.tril[:T, :T] ==0, float('inf'))
+        # else: 
+        #     mask = attention_mask
+        # mask = attention_mask
+        mout = self.model(input_ids)[:,-1]
+
+        logits = self.ffn(mout)
+
+        if labels == None:
+            return (logits)
+
+
+        loss = F.cross_entropy(logits, labels)
+        return loss, logits, labels
+
+
 
 
 # RoPE from GPTneo
@@ -83,17 +107,20 @@ class AttentionHead(torch.nn.Module):
 
 
     # @torch.autocast(device_type=DEVICE)
-    def forward(self, input_vecs):
+    def forward(self, input_vecs, mask=None):
         """
         args:
             input_vecs [batch size, seq_len, d_model]
                 : input vectors
         
         """
-        B, T, C = input_vecs.shape
+        if len(input_vecs.shape) == 3:
+            B, T, C = input_vecs.shape
+        else:
+            T, C = input_vecs.shape
 
         qkv = F.linear(input_vecs, self.qkv)
-        Q, K, V = torch.split(qkv, qkv.size(2) // 3, dim=-1)
+        Q, K, V = torch.chunk(qkv, 3, dim=-1)
         cos, sin = self.rope(Q)
         Q, K = apply_rotary_pos_emb(Q, K, cos, sin)
         sqk = (self.sqk * (self.sqk_init_value/self.sqk_init_scaling))#.view(1, 1, self.num_heads, self.d_model// self.num_heads)
@@ -101,9 +128,25 @@ class AttentionHead(torch.nn.Module):
         K = justnorm(K)*sqk
 
         if self.training:
-            out = F.scaled_dot_product_attention(Q, K, V, dropout_p=0, is_causal=True, scale=C**0.5)
+            if mask != None:
+                out = F.scaled_dot_product_attention(Q, K, V, 
+                                                 dropout_p=0.1, 
+                                                 is_causal=True, 
+                                                 scale=C**0.5, 
+                                                 attn_mask=mask)
+            else:
+                out = F.scaled_dot_product_attention(Q, K, V, 
+                                                 dropout_p=0.1, 
+                                                 scale=C**0.5, 
+                                                 attn_mask=mask)
+
         else:
-            out = F.scaled_dot_product_attention(Q, K, V, dropout_p=0, is_causal=True, scale=C**0.5)
+            out = F.scaled_dot_product_attention(Q, K, V, 
+                                                 dropout_p=0, 
+                                                 is_causal=True, 
+                                                 scale=C**0.5, 
+                                                 attn_mask=mask)
+
 
         return out
 
@@ -168,14 +211,14 @@ class TransformerLayer(torch.nn.Module):
         self.attn_alpha = torch.nn.Parameter(self.attn_alpha_init_scaling*torch.ones(d_model, dtype=torch.float32), requires_grad=True)
 
     # @torch.autocast(device_type=DEVICE)
-    def forward(self, x):
+    def forward(self, x, mask=None):
         """
         :param x: input embeddings
                 [batch size, context length, d_model]
         :return: output of decoder block, same shape as input
         """
         t = x
-        t = torch.cat([head(t) for head in self.heads], dim=-1)
+        t = torch.cat([head(t, mask) for head in self.heads], dim=-1)
 
         t = F.linear(t, self.W_O)
 
@@ -283,12 +326,12 @@ class Decoder(torch.nn.Module):
         self.sz = torch.nn.Parameter(self.sz_scale * torch.ones(vocab_size, dtype=torch.float32))
 
     @torch.autocast(device_type=DEVICE)
-    def forward(self, input:torch.Tensor):
+    def forward(self, input:torch.Tensor, mask=None):
         if self.pretraining:
             x = self.embeddings(input) 
 
             for head in self.blocks:
-                x = head(x) + x
+                x = head(x, mask) + x
 
             b = F.linear(x, self.lin)
             sz = self.sz * (self.sz_init/self.sz_scale)
@@ -297,13 +340,13 @@ class Decoder(torch.nn.Module):
             return t#F.softmax(t, dim=-1)
         else:
             # Headless mode
-            with torch.no_grad():
-                x = self.embeddings(input) 
+            # with torch.no_grad():
+            x = self.embeddings(input) 
 
-                for head in self.blocks:
-                    x = head(x) + x
+            for head in self.blocks:
+                x = head(x, mask) + x
 
-                return x
+            return x
 
 
 
