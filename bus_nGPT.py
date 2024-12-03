@@ -340,13 +340,13 @@ class Decoder(torch.nn.Module):
             return t#F.softmax(t, dim=-1)
         else:
             # Headless mode
-            # with torch.no_grad():
-            x = self.embeddings(input) 
+            with torch.no_grad():
+                x = self.embeddings(input) 
 
-            for head in self.blocks:
-                x = head(x, mask) + x
+                for head in self.blocks:
+                    x = head(x, mask) + x
 
-            return x
+                return x
 
 
 
