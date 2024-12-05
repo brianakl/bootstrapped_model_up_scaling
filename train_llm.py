@@ -1,4 +1,5 @@
 import torch
+import os
 import numpy as np
 import matplotlib.pyplot as plt
 from torch.utils.data import Dataset, DataLoader, RandomSampler
@@ -6,114 +7,173 @@ import tqdm
 from datasets import load_dataset
 from transformers import AutoTokenizer
 import argparse
-from bus_decoder_model import Decoder, Transformer, AttentionHead
+from bus_nGPT import *
 from torch.utils.tensorboard.writer import SummaryWriter
 from collections import defaultdict, Counter
 
 DEVICE = 'cuda' if torch.cuda.is_available() else 'cpu'
 
 # Params
-d_model = 368 
+d_model = 256 
 target_size = 512
-num_layers = 4
+num_layers = 8
 num_heads = 8
 d_hidden = 4*d_model
-seq_len = 128
-vocab_size = 67
-max_steps = 5000 # TODO: check out higher step count
+con_len = 512
+vocab_size = 30523
+max_steps = 5000 
 transfer_step = 800
-dataset = 'salesforce/wikitext'
+dataset = 'openwebtext'
 lr = 1e-3
 min_lr = 1e-4
-batch_size = 128
+batch_size = 10
+grad_accumulation_steps=20
+eval_interval=100
+eval_samples=400
+name='test'
+num_transfer_steps=800
 
+# poor man's data loader
+data_dir = os.path.join('data', dataset)
+def get_batch(split='train', batch_size=128, con_len=128):
+    # We recreate np.memmap every batch to avoid a memory leak, as per
+    # https://stackoverflow.com/questions/45132940/numpy-memmap-memory-usage-want-to-iterate-once/61472122#61472122
+    if split == 'train':
+        data = np.memmap(os.path.join(data_dir, 'train.bin'), dtype=np.uint16, mode='r')
+    else:
+        data = np.memmap(os.path.join(data_dir, 'val.bin'), dtype=np.uint16, mode='r')
+    ix = torch.randint(len(data) - con_len, (batch_size,))
+    x = torch.stack([torch.from_numpy((data[i:i+con_len]).astype(np.int64)) for i in ix])
+    y = torch.stack([torch.from_numpy((data[i+1:i+1+con_len]).astype(np.int64)) for i in ix])
+    if DEVICE == 'cuda':
+        # pin arrays x,y, which allows us to move them to GPU asynchronously (non_blocking=True)
+        x, y = x.pin_memory().to(DEVICE, non_blocking=True), y.pin_memory().to(DEVICE, non_blocking=True)
+    else:
+        x, y = x.to(DEVICE), y.to(DEVICE)
+    return x, y
 
-# Function to perform Byte Pair Encoding
-def byte_pair_encoding(text, num_merges):
-    # Split the text into a list of characters (initial symbols)
-    symbols = list(text)
-    
-    # Initialize the frequency dictionary of symbol pairs
-    def get_pair_frequencies(symbols):
-        pairs = defaultdict(int)
-        for i in range(len(symbols) - 1):
-            pair = (symbols[i], symbols[i+1])
-            pairs[pair] += 1
-        return pairs
-    
-    # Merge the most frequent pair in the symbols list
-    def merge_pair(symbols, pair):
-        new_symbols = []
-        i = 0
-        while i < len(symbols):
-            if i < len(symbols) - 1 and (symbols[i], symbols[i+1]) == pair:
-                # Replace the pair with a merged symbol
-                new_symbols.append(symbols[i] + symbols[i+1])
-                i += 2  # Skip the next symbol as it's part of the merged pair
-            else:
-                new_symbols.append(symbols[i])
-                i += 1
-        return new_symbols
-    
-    # Perform the merge operations
-    for _ in range(num_merges):
-        # Get the frequencies of each pair
-        pair_frequencies = get_pair_frequencies(symbols)
-        if not pair_frequencies:
-            break
-        
-        # Find the most frequent pair
-        most_frequent_pair = max(pair_frequencies, key=pair_frequencies.get)
-        
-        # Merge the most frequent pair in the symbols list
-        symbols = merge_pair(symbols, most_frequent_pair)
-    
-    return symbols
-
-
-# TODO: create way to make a torch dataset for wikitext
-
-def get_data(dataset='salesforce/wikitext'):
-    data = load_dataset(dataset)
-    # TODO: process and clean data
-    
 
 def test_model(model, data):
     pass
 
-def train_model(model, data, transfer_step=900, target_size=1024, lr=1e-3, min_lr=1e-6, max_iters=5000, transfer=False):
-    loss_func = torch.nn.CrossEntropyLoss()
-    optimizer = torch.optim.AdamW(model.parameters(), lr=lr)
-    scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, max_iters, min_lr)
-    writer = SummaryWriter()
-    for iter in tqdm.tqdm(range(1, max_iters)):
+def save_model(model, name, steps):
+    torch.save(model, name+steps+".pt")
 
-        if iter == transfer_step and transfer:
-        # if iter <= 1000 and iter % 500 == 0:
+def train(model:Decoder, 
+          lr=1e-3, 
+          grad_accum_steps=100, 
+          eval_interval=100,
+          min_lr=1e-4,
+          name='std_model',
+          batch_size=128,
+          transfer_step_size=64,
+          num_transfer_steps=1,
+          transfer_step=2000,
+          eval_samples=1000,
+          total_steps=20000,
+          model_saving=False,
+          con_len=128
+          ):
+
+    
+    writer = SummaryWriter(comment=name)
+
+    optimizer = torch.optim.AdamW(model.parameters(), lr=lr, weight_decay=0)
+
+
+    scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, total_steps, min_lr)
+
+    scaler = torch.GradScaler()
+
+    last_transfer_step = transfer_step * num_transfer_steps
+
+
+    expand = False
+    
+    steps = 1
+    last_bus = 1
+    transfer_steps_count = 0
+    iter = 1
+
+    t = tqdm.tqdm(total=total_steps, desc='Steps')
+
+    avg_loss = torch.tensor(0., device=DEVICE)
+
+    while steps <= total_steps:
+        
+        if transfer_step != -1 and (steps%transfer_step == 0 and last_bus != steps) and steps <= last_transfer_step:
+            avg_loss = torch.tensor(0., device=DEVICE)
+            target_size = model.d_model + transfer_step_size
+            # target_size = model.d_model * 2
+            print('model expanded: ', target_size)
+            batch_size = int(batch_size // (target_size/model.d_model))
+
+            grad_accum_steps = round(102400/(batch_size*con_len))
+            print("bsz: ", batch_size)
+            print('grad steps: ', grad_accum_steps)
             model.expand(target_size)
-            optimizer = torch.optim.AdamW(model.parameters(), lr=lr)
-            # scheduler = torch.optim.lr_scheduler.StepLR(optimizer, 100, 0.5)
-            print('at step {}: expanded model to: {} M parameters'.format(iter, sum(p.numel() for p in model.parameters())/1e6))
+            print(sum(p.numel() for p in model.parameters())/1e6, "M parameters")
+            optimizer = torch.optim.AdamW(model.parameters(), lr=lr, weight_decay=0.1)
+            optimizer.zero_grad(set_to_none=True)
+            torch.cuda.empty_cache()
+            scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, total_steps, min_lr)
+            expand = 1
             model.to('cpu')
-            model.to(DEVICE)    # Shortcut to recompile gradient backprop since the model changed sizes (assuming always using gpu)
-            loss_func = torch.nn.CrossEntropyLoss()
+            model.to(DEVICE)    # used to recompile compute graph to reflect new model
+            last_bus = steps
+            transfer_steps_count += 1
 
-        # evaluate the loss
+        # TODO: add model checkpoints to save progress after checking val loss
+        #       & make sure that model stats and imformation is saved as well
+        if ((iter%(eval_interval*grad_accum_steps) == 0) or expand or iter == 1):
+            l = 0
+            print("running eval")
+            with torch.no_grad():
+                model.eval()
+                for _ in range(eval_samples):
+                    x, y = get_batch('val', batch_size=batch_size, con_len=con_len)
+                    py = model(x)
+                    B, T, C = py.shape
+                    logits = py.view(B*T, C)
+                    targets = y.view(B*T)
+                    l += F.cross_entropy(logits, targets)
+                total_l = l/eval_samples
+                writer.add_scalar("Val loss", total_l, steps)
+                print("val loss: ", total_l)
+                expand = 0
+                # bus = False if last_val * 0.9 >= total_l else True
+                # last_val = total_l
+                if model_saving: save_model(model, name, steps)
+            model.train()
+
+        xb, yb = get_batch(split='train', batch_size=batch_size, con_len=con_len)
         logits = model(xb)
-        B, T, C = logits.shape
-        logits = logits.view(B*T, C)
-        targets = yb.view(B*T)
-        loss = loss_func(logits, targets)
-
-        optimizer.zero_grad(set_to_none=True)
+        loss = F.cross_entropy(logits.view(-1, logits.size(-1)), yb.view(-1), ignore_index=-1)
+        # scaler.scale(loss).backward()
         loss.backward()
-        writer.add_scalar('Loss/train', loss, iter)
-        optimizer.step()
-        scheduler.step()
+        avg_loss += loss
 
-    writer.flush()
+        
+        if iter % grad_accum_steps == 0: 
+            
+            torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
+            x = 0
+
+            optimizer.step()
+            optimizer.zero_grad(set_to_none=True)
+            l = avg_loss.cpu().item()/grad_accum_steps
+            writer.add_scalar("Training Perplexity", np.exp(l), steps)
+            writer.add_scalar("Training Loss", l, steps)
+            t.update()
+            scheduler.step()
+            model.normalize()
+            avg_loss = torch.tensor(0., device=DEVICE)
+            steps += 1
+
+        iter += 1
+
+    t.close()
     writer.close()
-    test_model(model, data['test'])
 
 
 
@@ -121,8 +181,6 @@ def train_model(model, data, transfer_step=900, target_size=1024, lr=1e-3, min_l
 if __name__ == '__main__':
     # TODO: arg parsing
     parser = argparse.ArgumentParser(description="LLM training args")
-    # Add a required positional argument called "filename"
-    parser.add_argument("filename", help="The name of the file to process")
     
     # Add an optional boolean flag called "verbose"
     parser.add_argument("-v", "--verbose", action="store_true", help="Print extra information about the processing")
@@ -133,12 +191,16 @@ if __name__ == '__main__':
     parser.add_argument("--d_hidden", action="store_true", default=d_hidden, help="Dataset")
     parser.add_argument("--vocab_size", action="store_true", default=vocab_size, help="Dataset")
     parser.add_argument("--num_heads", action="store_true", default=num_heads, help="Dataset")
-    parser.add_argument("--seq_len", action="store_true", default=seq_len, help="Dataset")
-    parser.add_argument("--lr", action="store_true", default=lr, help="Dataset")
-    parser.add_argument("--min_lr", action="store_true", default=min_lr, help="Dataset")
-    parser.add_argument("--steps", action="store_true", default=max_steps, help="Dataset")
-    parser.add_argument("--transfer", action="store_true", default=transfer_step, help="Dataset")
-    parser.add_argument("--batch_size", action="store_true", default=batch_size, help="Dataset")
+    parser.add_argument("--con_len", action="store_true", default=con_len, help="Context length")
+    parser.add_argument("--lr", action="store_true", default=lr, help="starting learning rate")
+    parser.add_argument("--min_lr", action="store_true", default=min_lr, help="min learning rate")
+    parser.add_argument("--steps", action="store_true", default=max_steps, help="num of training steps")
+    parser.add_argument("--transfer", action="store_true", default=transfer_step, help="whether or not to BUS")
+    parser.add_argument("--batch_size", action="store_true", default=batch_size, help="batch size")
+    parser.add_argument("--name", action="store_true", default='test', help="model name")
+    parser.add_argument("--grad_sccumulation_steps", action="store_true", default=grad_accumulation_steps, help="num grad accum steps")
+    parser.add_argument("--eval_interval", action="store_true", default=eval_interval, help="After how many steps to run eval")
+    parser.add_argument("--eval_samples", action="store_true", default=eval_samples, help="How many samples to eval over")
 
     print("Device: ", DEVICE)
 
@@ -146,7 +208,21 @@ if __name__ == '__main__':
     if dataset == 'shakespeare':
         data = load_dataset('tiny_shakespeare')
 
-    model = Decoder(d_model=d_model, num_layers=num_layers, num_heads=num_heads, d_hidden=d_hidden, vocab_size=vocab_size, seq_len=seq_len)
+    model = Decoder(d_model=d_model, 
+                    num_layers=num_layers, 
+                    num_heads=num_heads, 
+                    vocab_size=vocab_size, 
+                    )
 
-    train_model(model=model, data=data, transfer_step=transfer_step)
-
+    train(model=model, 
+          transfer_step=transfer_step,
+          min_lr=min_lr,
+          grad_accum_steps=grad_accumulation_steps,
+          lr=lr,
+          name=name,
+          num_transfer_steps=num_transfer_steps,
+          total_steps=max_steps,
+          con_len=con_len,
+         )
+    save_model(model, name+'_final', '')
+ 

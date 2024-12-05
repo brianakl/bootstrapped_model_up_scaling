@@ -26,13 +26,6 @@ class LMHead(torch.nn.Module):
 
     def forward(self, input_ids, attention_mask=None, labels=None):
 
-        # B, T, C = input_ids.shape
-        
-        # if attention_mask != None:
-        #     mask = attention_mask.masked_fill(self.tril[:T, :T] ==0, float('inf'))
-        # else: 
-        #     mask = attention_mask
-        # mask = attention_mask
         mout = self.model(input_ids)[:,-1]
 
         logits = self.ffn(mout)
@@ -58,9 +51,9 @@ class Rotary(torch.nn.Module):
         self.sin_cached = None
 
     def forward(self, x, seq_dim=-2):
-        seq_len = x.shape[seq_dim]
-        if seq_len != self.seq_len_cached:
-            self.seq_len_cached = seq_len
+        con_len = x.shape[seq_dim]
+        if con_len != self.seq_len_cached:
+            self.seq_len_cached = con_len
             t = torch.arange(x.shape[seq_dim], device=x.device).type_as(self.inv_freq)
             freqs = torch.einsum("i,j->ij", t, self.inv_freq)
             emb = torch.cat((freqs, freqs), dim=-1).to(x.device)
@@ -92,7 +85,9 @@ class AttentionHead(torch.nn.Module):
         super().__init__()
 
         stdev = 1/((d_model+d_internal)**0.5)
-        self.qkv = torch.nn.Parameter(torch.ones((3*d_internal, d_model), device=DEVICE).uniform_(-stdev,stdev), requires_grad=True)
+        self.qkv = torch.nn.Parameter(torch.ones((3*d_internal, d_model), 
+                                      device=DEVICE).uniform_(-stdev,stdev),
+                                      requires_grad=True)
         self.qkv.data = justnorm(self.qkv.data)
         self.d_model = d_model
         self.d_internal = d_internal
@@ -103,14 +98,16 @@ class AttentionHead(torch.nn.Module):
         
         self.sqk_init_value = 1.0       
         self.sqk_init_scaling = d_model ** -0.5
-        self.sqk = torch.nn.Parameter(self.sqk_init_scaling*torch.ones(d_internal, dtype=torch.float32), requires_grad=True)
+        self.sqk = torch.nn.Parameter(
+                self.sqk_init_scaling*torch.ones(d_internal, dtype=torch.float32), 
+                requires_grad=True)
 
 
     # @torch.autocast(device_type=DEVICE)
     def forward(self, input_vecs, mask=None):
         """
         args:
-            input_vecs [batch size, seq_len, d_model]
+            input_vecs [batch size, con_len, d_model]
                 : input vectors
         
         """
@@ -123,7 +120,7 @@ class AttentionHead(torch.nn.Module):
         Q, K, V = torch.chunk(qkv, 3, dim=-1)
         cos, sin = self.rope(Q)
         Q, K = apply_rotary_pos_emb(Q, K, cos, sin)
-        sqk = (self.sqk * (self.sqk_init_value/self.sqk_init_scaling))#.view(1, 1, self.num_heads, self.d_model// self.num_heads)
+        sqk = (self.sqk * (self.sqk_init_value/self.sqk_init_scaling))
         Q = justnorm(Q)*sqk
         K = justnorm(K)*sqk
 
@@ -187,28 +184,54 @@ class TransformerLayer(torch.nn.Module):
         self.d_internal = d_model//num_heads
         self.num_heads = num_heads
 
-        self.heads = torch.nn.ModuleList([AttentionHead(d_model, self.d_internal, num_heads) for _ in range(num_heads)])
+        self.heads = torch.nn.ModuleList([
+                AttentionHead(d_model, self.d_internal, num_heads) 
+                for _ in range(num_heads)
+            ])
+
         stdev = 1/((4*d_model + d_model)**0.5)
-        self.Wu=torch.nn.Parameter(torch.zeros((2*4*d_model, d_model), device=DEVICE).uniform_(-stdev,stdev), requires_grad=True)
+
+        self.Wu=torch.nn.Parameter(torch.zeros((2*4*d_model, d_model), 
+                                   device=DEVICE).uniform_(-stdev,stdev), 
+                                   requires_grad=True
+                                   )
         self.Wu.data = justnorm(self.Wu.data)
-        self.Wv = torch.nn.Parameter(torch.zeros((d_model, 4*d_model), device=DEVICE).uniform_(-stdev,stdev), requires_grad=True)
+
+        self.Wv = torch.nn.Parameter(
+                torch.zeros((d_model, 4*d_model), device=DEVICE).uniform_(-stdev,stdev), 
+                requires_grad=True)
         self.Wv.data = justnorm(self.Wv.data)
+
         self.silu = torch.nn.SiLU()
-        self.W_O =  torch.nn.Parameter(torch.zeros((d_model, d_model), device=DEVICE).uniform_(-stdev,stdev), requires_grad=True)
+
+        self.W_O =  torch.nn.Parameter(
+                torch.zeros((d_model, d_model), device=DEVICE).uniform_(-stdev,stdev), 
+                requires_grad=True
+                )
         self.W_O.data = justnorm(self.W_O.data)
 
         self.mlp_alpha_init_value = 0.05
         self.mlp_alpha_init_scaling = 1. 
-        self.mlp_alpha = torch.nn.Parameter(self.mlp_alpha_init_scaling*torch.ones(d_model, dtype=torch.float32), requires_grad=True)
+        self.mlp_alpha = torch.nn.Parameter(
+                self.mlp_alpha_init_scaling*torch.ones(d_model, dtype=torch.float32),
+                requires_grad=True
+                )
 
         self.suv_init_value = 1.0
         self.suv_init_scaling = 1.0
-        self.suv = torch.nn.Parameter(self.suv_init_scaling*torch.ones(2 * 4 * d_model, dtype=torch.float32), requires_grad=True)
+        self.suv = torch.nn.Parameter(
+                self.suv_init_scaling*torch.ones(2 * 4 * d_model, dtype=torch.float32), 
+                requires_grad=True
+                )
+
         self.sqdm = d_model ** 0.5
 
         self.attn_alpha_init_value = 0.05
         self.attn_alpha_init_scaling = d_model ** -0.5 
-        self.attn_alpha = torch.nn.Parameter(self.attn_alpha_init_scaling*torch.ones(d_model, dtype=torch.float32), requires_grad=True)
+        self.attn_alpha = torch.nn.Parameter(
+                self.attn_alpha_init_scaling*torch.ones(d_model, dtype=torch.float32), 
+                requires_grad=True
+                )
 
     # @torch.autocast(device_type=DEVICE)
     def forward(self, x, mask=None):
@@ -239,7 +262,7 @@ class TransformerLayer(torch.nn.Module):
         
 
         u, v = torch.chunk(t, 2, dim=-1)
-        res = u * F.silu(v) #self.silu(v)
+        res = u * F.silu(v) 
 
         t = F.linear(res, self.Wv)
 
@@ -277,6 +300,7 @@ class TransformerLayer(torch.nn.Module):
 
         self.mlp_alpha.data *= exp_ratio
         self.mlp_alpha.data = self.mlp_alpha.data.repeat(1,2)[0][:d_mnew].clone()
+
         self.suv.data *= exp_ratio
         s1, s2 = self.suv.data.clone().chunk(2)
         s1 = s1.repeat(1,2)[:, :4*d_mnew]
@@ -308,25 +332,39 @@ class Decoder(torch.nn.Module):
         self.d_model = d_model
         self.vocab_size = vocab_size
         self.num_heads = num_heads
-        self.blocks = torch.nn.ModuleList([TransformerLayer(d_model, num_heads) for _ in range(num_layers)])
+        self.blocks = torch.nn.ModuleList([
+            TransformerLayer(d_model, num_heads) for _ in range(num_layers)
+            ])
 
         stdev = 1/((d_model)**0.5)
-        self.lin = torch.nn.Parameter(torch.zeros((vocab_size, d_model), device=DEVICE).uniform_(-stdev,stdev))
+        self.lin = torch.nn.Parameter(
+                torch.zeros((vocab_size, d_model), device=DEVICE).uniform_(-stdev,stdev)
+                )
 
         self.embeddings = torch.nn.Embedding(vocab_size, d_model, device=DEVICE)
         torch.backends.cuda.enable_flash_sdp(True)
 
-        if torch.backends.cuda.flash_sdp_enabled(): print("Flash attention enabled")
+        if torch.backends.cuda.flash_sdp_enabled(): 
+            print("Flash attention enabled")
 
         self.pretraining = True
         self.output_classes = 2
 
         self.sz_init = 1.
         self.sz_scale = d_model ** -0.5
-        self.sz = torch.nn.Parameter(self.sz_scale * torch.ones(vocab_size, dtype=torch.float32))
+        self.sz = torch.nn.Parameter(
+                self.sz_scale * torch.ones(vocab_size, dtype=torch.float32)
+                )
+
+        self.pz = torch.nn.Parameter(
+                self.sz_scale * torch.ones(d_model, dtype=torch.float32)
+                )
+        self.pst = torch.nn.Parameter(
+                torch.zeros((d_model,d_model), device=DEVICE).uniform_(-stdev, stdev)
+                )
 
     @torch.autocast(device_type=DEVICE)
-    def forward(self, input:torch.Tensor, mask=None):
+    def forward(self, input:torch.Tensor, mask=None, train_body=True):
         if self.pretraining:
             x = self.embeddings(input) 
 
@@ -338,16 +376,27 @@ class Decoder(torch.nn.Module):
             t = b * sz
 
             return t#F.softmax(t, dim=-1)
+
         else:
             # Headless mode
-            with torch.no_grad():
-                x = self.embeddings(input) 
+            if train_body:
+                x = self.embeddings(input)
 
                 for head in self.blocks:
                     x = head(x, mask) + x
 
-                return x
+                # add normalization to output
 
+
+            else:
+                with torch.no_grad():
+                    x = self.embeddings(input) 
+
+                    for head in self.blocks:
+                        x = head(x, mask) + x
+
+                    # add normalization to output
+                    return x
 
 
     def expand(self, d_mnew):
