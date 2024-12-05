@@ -10,6 +10,9 @@ import argparse
 from bus_nGPT import *
 from torch.utils.tensorboard.writer import SummaryWriter
 from collections import defaultdict, Counter
+# import wandb
+import json
+import pdb
 
 DEVICE = 'cuda' if torch.cuda.is_available() else 'cpu'
 
@@ -21,7 +24,7 @@ num_heads = 8
 d_hidden = 4*d_model
 con_len = 512
 vocab_size = 30523
-max_steps = 5000 
+total_steps = 5000 
 transfer_step = 800
 dataset = 'openwebtext'
 lr = 1e-3
@@ -32,6 +35,9 @@ eval_interval=100
 eval_samples=400
 name='test'
 num_transfer_steps=800
+wb = True
+model_saving = False
+
 
 # poor man's data loader
 data_dir = os.path.join('data', dataset)
@@ -80,6 +86,8 @@ def train(model:Decoder,
 
     optimizer = torch.optim.AdamW(model.parameters(), lr=lr, weight_decay=0)
 
+    # breakpoint()
+    model = torch.compile(model)
 
     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, total_steps, min_lr)
 
@@ -98,6 +106,9 @@ def train(model:Decoder,
     t = tqdm.tqdm(total=total_steps, desc='Steps')
 
     avg_loss = torch.tensor(0., device=DEVICE)
+
+    # breakpoint()
+    optimizer.zero_grad(set_to_none=True)
 
     while steps <= total_steps:
         
@@ -123,8 +134,6 @@ def train(model:Decoder,
             last_bus = steps
             transfer_steps_count += 1
 
-        # TODO: add model checkpoints to save progress after checking val loss
-        #       & make sure that model stats and imformation is saved as well
         if ((iter%(eval_interval*grad_accum_steps) == 0) or expand or iter == 1):
             l = 0
             print("running eval")
@@ -149,8 +158,8 @@ def train(model:Decoder,
         xb, yb = get_batch(split='train', batch_size=batch_size, con_len=con_len)
         logits = model(xb)
         loss = F.cross_entropy(logits.view(-1, logits.size(-1)), yb.view(-1), ignore_index=-1)
-        # scaler.scale(loss).backward()
-        loss.backward()
+        scaler.scale(loss).backward()
+        # loss.backward()
         avg_loss += loss
 
         
@@ -159,7 +168,9 @@ def train(model:Decoder,
             torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
             x = 0
 
-            optimizer.step()
+            # optimizer.step()
+            scaler.step(optimizer)
+            scaler.update()
             optimizer.zero_grad(set_to_none=True)
             l = avg_loss.cpu().item()/grad_accum_steps
             writer.add_scalar("Training Perplexity", np.exp(l), steps)
@@ -179,40 +190,46 @@ def train(model:Decoder,
 
 
 if __name__ == '__main__':
-    # TODO: arg parsing
-    parser = argparse.ArgumentParser(description="LLM training args")
-    
-    # Add an optional boolean flag called "verbose"
-    parser.add_argument("-v", "--verbose", action="store_true", help="Print extra information about the processing")
-    parser.add_argument("--d_model", action="store_true", default=d_model, help="model dimensions")
-    parser.add_argument("--target_size", action="store_true", default=target_size, help="model dimensions")
-    parser.add_argument("--dataset", action="store_true", default=dataset, help="Dataset")
-    parser.add_argument("--num_layers", action="store_true", default=num_layers, help="Dataset")
-    parser.add_argument("--d_hidden", action="store_true", default=d_hidden, help="Dataset")
-    parser.add_argument("--vocab_size", action="store_true", default=vocab_size, help="Dataset")
-    parser.add_argument("--num_heads", action="store_true", default=num_heads, help="Dataset")
-    parser.add_argument("--con_len", action="store_true", default=con_len, help="Context length")
-    parser.add_argument("--lr", action="store_true", default=lr, help="starting learning rate")
-    parser.add_argument("--min_lr", action="store_true", default=min_lr, help="min learning rate")
-    parser.add_argument("--steps", action="store_true", default=max_steps, help="num of training steps")
-    parser.add_argument("--transfer", action="store_true", default=transfer_step, help="whether or not to BUS")
-    parser.add_argument("--batch_size", action="store_true", default=batch_size, help="batch size")
-    parser.add_argument("--name", action="store_true", default='test', help="model name")
-    parser.add_argument("--grad_sccumulation_steps", action="store_true", default=grad_accumulation_steps, help="num grad accum steps")
-    parser.add_argument("--eval_interval", action="store_true", default=eval_interval, help="After how many steps to run eval")
-    parser.add_argument("--eval_samples", action="store_true", default=eval_samples, help="How many samples to eval over")
 
-    print("Device: ", DEVICE)
+    with open('config.json', 'r') as config_file:
+        config = json.load(config_file)
 
-    data = None
-    if dataset == 'shakespeare':
-        data = load_dataset('tiny_shakespeare')
+    bos_token = "<|BOS|>"
+    tokenizer = AutoTokenizer.from_pretrained('google-bert/bert-base-uncased')
+    tokenizer.add_special_tokens({"bos_token": bos_token})
+    vocab_size = tokenizer.vocab_size
+
+
+    d_model = config['d_model']
+    target_size = config['target_size']
+    num_layers = config['num_layers']
+    num_layers = config['num_layers']
+    num_heads = config['num_heads']
+    con_len = config['con_len']
+    lr = config['lr']
+    min_lr = config['min_lr']
+    steps = config['steps']
+    transfer = config['transfer']
+    batch_size = config['batch_size']
+    name = config['name']
+    grad_accumulation_steps = config['grad_accumulation_steps']
+    eval_samples = config['eval_samples']
+    eval_interval = config['eval_interval']
+    model_saving = config['model_saving']
+
+    print("Model Config")
+    for key in config.keys():
+        print(f"{key+':':<30}{config[key]}")
 
     model = Decoder(d_model=d_model, 
                     num_layers=num_layers, 
                     num_heads=num_heads, 
                     vocab_size=vocab_size, 
                     )
+
+    print("Device: ", DEVICE)
+    print("{}M Parameters".format(sum([p.numel() for p in model.parameters()])/1e6))
+    model.to(DEVICE)
 
     train(model=model, 
           transfer_step=transfer_step,
@@ -221,8 +238,11 @@ if __name__ == '__main__':
           lr=lr,
           name=name,
           num_transfer_steps=num_transfer_steps,
-          total_steps=max_steps,
+          total_steps=total_steps,
           con_len=con_len,
+          eval_interval=eval_interval,
+          eval_samples=eval_samples,
+          model_saving=model_saving,
          )
     save_model(model, name+'_final', '')
  
