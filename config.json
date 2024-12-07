@@ -3,7 +3,7 @@
     "target_size": 256,
     "num_layers": 6,
     "num_heads": 8,
-    "con_len": 256,
+    "con_len": 128,
     "lr": 1e-3,
     "min_lr": 1e-4,
     "steps": 10000,

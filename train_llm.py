@@ -148,6 +148,7 @@ def train(model:Decoder,
                     l += F.cross_entropy(logits, targets)
                 total_l = l/eval_samples
                 writer.add_scalar("Val loss", total_l, steps)
+                torch.cuda.empty_cache()
                 print("val loss: ", total_l)
                 expand = 0
                 # bus = False if last_val * 0.9 >= total_l else True
@@ -178,6 +179,7 @@ def train(model:Decoder,
             t.update()
             scheduler.step()
             model.normalize()
+            torch.cuda.empty_cache()
             avg_loss = torch.tensor(0., device=DEVICE)
             steps += 1
 
