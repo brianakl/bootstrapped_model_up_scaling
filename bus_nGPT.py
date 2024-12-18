@@ -79,7 +79,7 @@ def apply_rotary_pos_emb(q, k, cos, sin):
 def justnorm(x):
     ret = x / x.norm(p=2, dim=-1, keepdim=True)
     return ret
-
+# single attention head
 class AttentionHead(torch.nn.Module):
     def __init__(self, d_model, d_internal, num_heads, rope_percentage=1.0):
         super().__init__()
@@ -144,7 +144,6 @@ class AttentionHead(torch.nn.Module):
                                                  scale=C**0.5, 
                                                  attn_mask=mask)
 
-
         return out
 
 
@@ -176,7 +175,7 @@ class AttentionHead(torch.nn.Module):
         W_V = justnorm(W_V)
         self.qkv.data = torch.cat([W_Q, W_K, W_V], dim=0)
 
-
+# single trandformer block
 class TransformerLayer(torch.nn.Module):
     def __init__(self, d_model, num_heads):
         super().__init__()
@@ -324,7 +323,7 @@ class TransformerLayer(torch.nn.Module):
             for h in self.heads:
                 h.normalize()
 
-
+# entire transformer wrapper
 class Decoder(torch.nn.Module):
     def __init__(self, num_layers, d_model, vocab_size, num_heads):
         super().__init__()
