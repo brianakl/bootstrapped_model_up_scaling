@@ -27,13 +27,9 @@ class LMHead(torch.nn.Module):
     def forward(self, input_ids, attention_mask=None, labels=None):
 
         mout = self.model(input_ids)[:,-1]
-
         logits = self.ffn(mout)
-
         if labels == None:
             return (logits)
-
-
         loss = F.cross_entropy(logits, labels)
         return loss, logits, labels
 
